@@ -6,14 +6,11 @@
 //   state = { throttle, boost, speed, speed01, cruise, cruiseCharge, angVel, strafe,
 //             engineMode, atmoDensity, velLocal }
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { buildProcedural } from './procedural.js';
 import { ParticlePool, glowSprite } from '../fx/particles.js';
 import { Exhaust } from '../fx/exhaust.js';
 import { RCS, defaultThrusters } from '../fx/rcs.js';
 import { Reentry } from '../fx/reentry.js';
-
-// Modelo a cargar. Si falla, queda el de primitivas.
-const SHIP_CONFIG_URL = 'assets/ships/irs/ship.json';
 
 // ---------- mapa de entorno tenue (sin él, las partes metálicas PBR se ven negras)
 let _env = null;
@@ -88,7 +85,6 @@ function prepMaterials(model, cfg) {
       if (!m.isMeshStandardMaterial) continue;
       m.envMap = env;
       m.envMapIntensity = cfg.envIntensity ?? 0.6;
-      if (m.emissiveMap || m.emissive.getHex() !== 0) m.emissiveIntensity = cfg.emissiveIntensity ?? 3;
     }
   });
 }
@@ -159,27 +155,12 @@ export function createShipVisual(scene) {
     });
   }
 
-  const fb = buildFallback();
-  install(fb, fb.userData.config);
-
-  // carga del modelo glTF (asincrónica: mientras tanto se ve el de respaldo)
-  const ready = (async () => {
-    try {
-      const res = await fetch(SHIP_CONFIG_URL);
-      if (!res.ok) throw new Error(`sin ${SHIP_CONFIG_URL}`);
-      const cfg = await res.json();
-      const base = SHIP_CONFIG_URL.replace(/[^/]+$/, '');
-      const gltf = await new GLTFLoader().loadAsync(base + cfg.file);
-      const holder = normalizeModel(gltf.scene, cfg);
-      prepMaterials(holder, cfg);
-      install(holder, cfg);
-      console.info(`Nave: modelo "${cfg.name ?? cfg.file}" cargado`);
-      return true;
-    } catch (e) {
-      console.warn('Nave: uso el modelo de respaldo:', e.message);
-      return false;
-    }
-  })();
+  // modelo procedural pulido; si algo falla, el de primitivas
+  let first;
+  try { first = buildProcedural(); prepMaterials(first, { envIntensity: 0.9 }); }
+  catch (e) { console.warn('Nave: uso el modelo de respaldo:', e.message); first = buildFallback(); }
+  install(first, first.userData.config);
+  const ready = Promise.resolve(true);
 
   const px = () => Math.min(devicePixelRatio, 2) * innerHeight * 0.5;
 

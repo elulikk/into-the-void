@@ -135,7 +135,7 @@ export class Exhaust {
     // diamantes: aparecen con empuje alto, mucho más con boost
     const dia = this.diaMode * THREE.MathUtils.smoothstep(T + B * 0.5, 0.55, 1.2) * (0.6 + 0.4 * B);
     const idle = 0.08;
-    const I = idle + T * (1.4 + B * 1.2) + (cruiseOn ? 0.6 * st.speed01 : 0) + charge * 0.8 + burstE * 3;
+    const I = idle + T * (0.8 + B * 0.6) + (cruiseOn ? 0.6 * st.speed01 : 0) + charge * 0.8 + burstE * 3;
 
     for (const n of this.nozzles) {
       const L = n.r * (1.5 + T * 9 * this.lenMode * (1 + B * 0.7) + burstE * 10 + (cruiseOn ? 4 : 0));

@@ -50,6 +50,14 @@ Pulsá **H** dentro del juego para ver todos los controles.
 - **G**: piloto automático al objetivo.
 - **, y .**: aceleración temporal.
 
+## Nave y efectos
+
+- El modelo de la nave es **procedural** (`src/ship/procedural.js`): fuselaje por secciones, alas, góndolas, timones y cabina,
+  con mapas de color/normal/rugosidad generados en un canvas. No usa archivos de terceros, así que no hay licencias que acreditar.
+  Si falla, `src/ship/visual.js` cae al modelo de primitivas.
+- Efectos en `src/fx/`: escape (núcleo/halo, diamantes de choque), RCS, carga y estallido del supercrucero, y plasma de reentrada
+  según la densidad de la atmósfera. `visual.js` expone `createShipVisual(scene) → { object3d, update(state, dt) }`.
+
 ## Próximos pasos posibles
 
 - Terreno con LOD (quadtree sobre cubo-esfera) para volar a baja altura sin texturas borrosas.
