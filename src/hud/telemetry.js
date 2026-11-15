@@ -147,14 +147,23 @@ export class Telemetry {
     attitude(ship.quat, U, N, E, fl);
     attitude(camera.quaternion, U, N, E, t.cam);
     t.cam.fov = camera.fov;
-    fl.mach = atm && atm.p > 1e-3 ? spd / atm.sound : null;
-    fl.q = 0.5 * env.rho * spd * spd;
+    // velocidad respecto del aire: la atmósfera rota con el cuerpo (v − ω × r)
+    const omega = _e.copy(pole).multiplyScalar(2 * Math.PI / (body.rot * 3600));
+    const vAirV = _h.copy(v);
+    if (atm && atm.inside && ship.frame === body) vAirV.sub(_w.crossVectors(omega, rC));
+    const vAir = vAirV.length();
+    fl.airSpeed = vAir;
+    fl.mach = atm && atm.p > 1e-3 ? vAir / atm.sound : null;
+    fl.q = 0.5 * env.rho * vAir * vAir;
     // fuerza G: aceleración respecto del marco menos la gravedad local (lo que "sentís")
     const frame = ship.frame;
     const rF = _w.copy(ship.local);
     const rFl = Math.max(1, rF.length());
     const muF = muOf(frame.id);
-    if (this.prevVel && dt > 1e-4) this.accel.subVectors(v, this.prevVel).divideScalar(dt);
+    const jumped = this.prevWorld && this.prevWorld.distanceTo(P) > spd * dt * 3 + 200;
+    (this.prevWorld ||= new THREE.Vector3()).copy(P);
+    if (jumped) this.felt.set(0, 0, 0);
+    if (this.prevVel && dt > 1e-4 && !jumped) this.accel.subVectors(v, this.prevVel).divideScalar(dt);
     else this.accel.set(0, 0, 0);
     (this.prevVel ||= new THREE.Vector3()).copy(v);
     const gvec = _h.copy(rF).multiplyScalar(-muF / (rFl * rFl * rFl));
@@ -206,12 +215,12 @@ export class Telemetry {
     const h1 = dt / steps;
     let qConv = 0, Tr = env.T;
     if (atm && env.rho > 0) {
-      const M2 = fl.mach * fl.mach;
+      const M2 = (vAir / atm.sound) ** 2;
       Tr = Math.min(9000, atm.T * (1 + 0.85 * (atm.gamma - 1) / 2 * M2));   // temperatura de recuperación
       const k = atm.M > 0.04 ? 1.9e-4 : atm.M > 0.02 ? 1.74e-4 : 0.65e-4;  // Sutton–Graves según el gas
-      qConv = k * Math.sqrt(env.rho / HULL.noseR) * spd * spd * spd;
+      qConv = k * Math.sqrt(env.rho / HULL.noseR) * vAir * vAir * vAir;
     }
-    const hc = env.rho > 0 ? 2 + 10 * Math.pow(env.rho * (spd + 2), 0.6) : 0;
+    const hc = env.rho > 0 ? 5 + 30 * Math.pow(env.rho * (vAir + 2), 0.6) : 0;
     const qRad = 0.25 * (HULL.absorb * env.irradiance + HULL.emis * ir);
     for (let i = 0; i < steps; i++) {
       const T = this.hullT;

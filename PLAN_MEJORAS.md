@@ -127,4 +127,4 @@ Funciones combinables: fbm, ridged multifractal (cordilleras), domain warping, c
 ## HUD de instrumentos
 - Tecla U: sci-fi / aviónica / minimalista (se guarda en localStorage).
 - `src/physics/` (datos y atmósferas por cuerpo), `src/hud/` (telemetría, instrumentos en canvas, alertas).
-- Pendiente: velocidad relativa al aire (hoy ignora la rotación del planeta) y terreno real (usa `ship.nearest.alt`).
+- La velocidad respecto del aire (Mach, q, calentamiento) descuenta la rotación del planeta; la altitud sale de `ship.nearest.alt`, así que acompañará al terreno real cuando se integre.
