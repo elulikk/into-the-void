@@ -113,6 +113,7 @@ let paused = false;
 
 // ---------- construir
 const system = new SolarSystem(scene);
+system.renderer = renderer; // para precalcular las tablas de las atmósferas
 const ship = new Ship(scene);
 const cam = new ChaseCamera(65);
 const dust = new SpaceDust(scene);

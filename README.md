@@ -53,7 +53,7 @@ Pulsá **H** dentro del juego para ver todos los controles.
 ## Próximos pasos posibles
 
 - Terreno con LOD (quadtree sobre cubo-esfera) para volar a baja altura sin texturas borrosas.
-- Scattering atmosférico real.
+- Atmósfera vista desde adentro (cielo, perspectiva aérea) y nubes.
 - Sombras de los anillos y eclipses.
 - Física newtoniana opcional (órbitas reales de la nave) además del modo arcade.
 - Asteroides y cometas desde el catálogo de JPL.

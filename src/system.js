@@ -3,7 +3,8 @@
 // ubica RELATIVO A LA CÁMARA (la cámara está siempre en el origen), así la GPU
 // (float32) sólo recibe números chicos para lo que está cerca.
 import * as THREE from 'three';
-import { BODIES } from './bodies.js';
+import { BODIES, ATMOSPHERES } from './bodies.js';
+import { createAtmosphere, updateAtmosphere } from './atmosphere.js';
 import { planetElements, planetPosition, moonElements, orbitalPosition, positionFromE, poleToEcliptic } from './ephemeris.js';
 import { proceduralTexture, tryRealTexture, ringTexture, glowTexture } from './textures.js';
 
@@ -16,28 +17,37 @@ export function eclToThree(a, out = new THREE.Vector3()) {
   return out.set(a[0], a[2], -a[1]);
 }
 
-const atmoVertex = /* glsl */`
-  #include <common>
-  #include <logdepthbuf_pars_vertex>
-  varying vec3 vN; varying vec3 vV;
-  void main() {
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vN = normalize(normalMatrix * normal);
-    vV = normalize(-mv.xyz);
-    gl_Position = projectionMatrix * mv;
-    #include <logdepthbuf_vertex>
-  }`;
-const atmoFragment = /* glsl */`
-  #include <logdepthbuf_pars_fragment>
-  uniform vec3 color; uniform vec3 sunDir;
-  varying vec3 vN; varying vec3 vV;
-  void main() {
-    #include <logdepthbuf_fragment>
-    // clamp: por redondeo dot() puede pasar de 1 y pow() de un negativo da NaN
-    float rim = clamp(1.0 - dot(normalize(vN), normalize(vV)), 0.0, 1.0);
-    float lit = smoothstep(-0.35, 0.4, dot(vN, sunDir));
-    gl_FragColor = vec4(color * 1.3, pow(rim, 2.5) * lit);
-  }`;
+// Sol: textura en HDR (alimenta el bloom) con oscurecimiento al borde (limb darkening):
+// en el borde se ven capas más altas y frías de la fotósfera → más oscuro y rojizo.
+function sunMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { map: { value: null }, uIntensity: { value: 7 } },
+    vertexShader: `
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+      void main() {
+        vUv = uv;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalMatrix * normal; vV = -mv.xyz;
+        gl_Position = projectionMatrix * mv;
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader: `
+      #include <logdepthbuf_pars_fragment>
+      uniform sampler2D map; uniform float uIntensity;
+      varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+      void main() {
+        #include <logdepthbuf_fragment>
+        float mu = clamp(dot(normalize(vN), normalize(vV)), 0.0, 1.0);
+        vec3 tex = texture2D(map, vUv).rgb;
+        tex = tex * tex; // sRGB aproximado → lineal
+        float limb = 1.0 - 0.62 * (1.0 - mu) - 0.2 * (1.0 - mu * mu);
+        vec3 tint = mix(vec3(1.0, 0.55, 0.3), vec3(1.0), pow(mu, 0.35));
+        gl_FragColor = vec4(tex * tint * limb * uIntensity, 1.0);
+      }`,
+  });
+}
 
 export class SolarSystem {
   constructor(scene) {
@@ -74,7 +84,7 @@ export class SolarSystem {
       const group = new THREE.Group();          // posición + inclinación del eje
       group.quaternion.copy(b.tilt);
       const mat = b.id === 'sun'
-        ? new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe2a0).multiplyScalar(6) })
+        ? sunMaterial()
         : new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.95, metalness: 0 });
       if (real.includes(b.id)) tryRealTexture(b.id, mat);
       else this.textureQueue.push({ b, mat });
@@ -83,16 +93,9 @@ export class SolarSystem {
       group.add(mesh);
       b.group = group; b.mesh = mesh;
 
-      if (b.atmo) {
-        const am = new THREE.ShaderMaterial({
-          vertexShader: atmoVertex, fragmentShader: atmoFragment,
-          uniforms: { color: { value: new THREE.Color(b.atmo) }, sunDir: { value: new THREE.Vector3() } },
-          transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-        });
-        const atmo = new THREE.Mesh(smallSphere, am);
-        atmo.scale.setScalar(b.R * 1.03);
-        group.add(atmo);
-        b.atmoMat = am;
+      if (ATMOSPHERES[b.id]) {
+        b.atm = createAtmosphere(b, ATMOSPHERES[b.id], this.renderer);
+        group.add(b.atm.mesh);
       }
       if (b.rings) {
         const [ri, ro] = b.rings.map(r => r * KM);
@@ -156,9 +159,10 @@ export class SolarSystem {
   generateNextTexture() {
     const job = this.textureQueue.shift();
     if (!job) return false;
-    job.mat.map = proceduralTexture(job.b.tex);
+    const tex = proceduralTexture(job.b.tex);
+    if (job.mat.uniforms?.map) { job.mat.uniforms.map.value = tex; return true; }
+    job.mat.map = tex;
     job.mat.color.set(0xffffff);
-    if (job.b.id === 'sun') job.mat.color.setScalar(6); // HDR: el Sol alimenta el bloom
     job.mat.needsUpdate = true;
     return true;
   }
@@ -228,14 +232,14 @@ export class SolarSystem {
     const sun = this.byId.sun;
     const dotPos = this.dots.geometry.attributes.position;
     const sunRel = new THREE.Vector3().subVectors(sun.pos, camPos);
-    const viewRot = new THREE.Quaternion().copy(camera.quaternion).invert();
+    const sunDirTmp = new THREE.Vector3();
     this.bodies.forEach((b, k) => {
       b.rel.subVectors(b.pos, camPos);
       b.group.position.copy(b.rel);
       b.mesh.rotation.y = b.spin;
       dotPos.setXYZ(k, b.rel.x, b.rel.y, b.rel.z);
-      if (b.atmoMat) {
-        b.atmoMat.uniforms.sunDir.value.subVectors(sunRel, b.rel).normalize().applyQuaternion(viewRot);
+      if (b.atm) {
+        updateAtmosphere(b.atm, b, b.rel, sunDirTmp.subVectors(sunRel, b.rel).normalize());
       }
     });
     dotPos.needsUpdate = true;
@@ -243,6 +247,11 @@ export class SolarSystem {
     const sd = sunRel.length();
     this.sunGlow.position.copy(sunRel);
     this.sunGlow.scale.setScalar(Math.max(sun.R * 7, sd * 0.03));
+    // "adaptación del ojo": de cerca el Sol baja de intensidad y el halo se atenúa,
+    // así se ve la superficie con su oscurecimiento al borde en vez de una mancha blanca
+    const near = THREE.MathUtils.smoothstep(sun.R / sd, 0.02, 0.25);
+    sun.mesh.material.uniforms.uIntensity.value = THREE.MathUtils.lerp(7, 1.6, near);
+    this.sunGlow.material.opacity = THREE.MathUtils.lerp(1, 0.25, near);
 
     for (const line of this.orbitGroup.children) {
       const b = line.userData.body;

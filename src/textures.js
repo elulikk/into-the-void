@@ -187,8 +187,8 @@ export function tryRealTexture(id, material) {
   new THREE.TextureLoader().load(`textures/${id}.jpg`, tex => {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
-    material.map = tex;
-    material.needsUpdate = true;
+    if (material.uniforms?.map) material.uniforms.map.value = tex;
+    else { material.map = tex; material.needsUpdate = true; }
   }, undefined, () => {});
 }
 

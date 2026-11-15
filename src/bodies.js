@@ -3,6 +3,34 @@
 // Lunas: órbita en el plano ecuatorial del planeta; a en km, período en días,
 // M0 = anomalía media en J2000 (aproximada para la mayoría).
 
+// Atmósferas (scattering): β en 1/m (R, G, B), alturas de escala en m.
+//   rayleigh/hR: moléculas · mie/mieAbs/hM/g: aerosoles, polvo, neblina
+//   abs/absCenter/absWidth: absorción (ozono; si absWidth = 0 sigue la densidad de Rayleigh, p. ej. metano)
+const E6 = a => a.map(x => x * 1e-6);
+export const ATMOSPHERES = {
+  earth: { top: 80e3, rayleigh: E6([5.802, 13.558, 33.1]), hR: 8000,
+    mie: E6([3.996, 3.996, 3.996]), mieAbs: E6([0.44, 0.44, 0.44]), hM: 1200, g: 0.8,
+    abs: E6([0.65, 1.881, 0.085]), absCenter: 25e3, absWidth: 15e3 },
+  // Marte: aire finísimo, cielo color caramelo por el polvo (que absorbe el azul)
+  mars: { top: 90e3, rayleigh: E6([0.06, 0.14, 0.33]), hR: 11000,
+    mie: E6([16, 11, 6.5]), mieAbs: E6([2, 5, 11]), hM: 11000, g: 0.76 },
+  // Venus: el "suelo" visible es el tope de las nubes; encima, neblina amarillenta y CO2 denso
+  venus: { top: 120e3, rayleigh: E6([12, 28, 68]), hR: 15000,
+    mie: E6([14, 12, 7]), mieAbs: E6([1, 2, 6]), hM: 6000, g: 0.7 },
+  // Titán: neblina orgánica naranja muy alta, absorbe el azul
+  titan: { top: 600e3, rayleigh: E6([0.4, 0.9, 2.2]), hR: 60000,
+    mie: E6([5, 3, 1.2]), mieAbs: E6([0.8, 2, 4.5]), hM: 45000, g: 0.65 },
+  jupiter: { top: 400e3, rayleigh: E6([0.35, 0.8, 1.9]), hR: 27000,
+    mie: E6([0.6, 0.55, 0.45]), mieAbs: E6([0.1, 0.15, 0.25]), hM: 20000, g: 0.7 },
+  saturn: { top: 500e3, rayleigh: E6([0.3, 0.7, 1.6]), hR: 60000,
+    mie: E6([0.5, 0.45, 0.3]), mieAbs: E6([0.05, 0.1, 0.2]), hM: 40000, g: 0.7 },
+  // Urano y Neptuno: Rayleigh fuerte + metano que absorbe el rojo
+  uranus: { top: 300e3, rayleigh: E6([0.9, 2.1, 5.0]), hR: 28000,
+    abs: E6([1.6, 0.25, 0.05]), hM: 10000 },
+  neptune: { top: 300e3, rayleigh: E6([1.0, 2.4, 5.6]), hR: 20000,
+    abs: E6([2.2, 0.5, 0.05]), hM: 10000 },
+};
+
 export const BODIES = [
   { id: 'sun', name: 'Sol', radius: 695700, soi: Infinity, pole: [286.13, 63.87], rot: 609.12,
     color: '#ffd27a', tex: 'sun' },
