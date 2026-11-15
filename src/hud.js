@@ -41,6 +41,11 @@ export class HUD {
     this.arrow = document.getElementById('target-arrow');
     this.prograde = document.getElementById('prograde');
     this.el = id => document.getElementById(id);
+    this.vstick = document.getElementById('vstick');
+    this.vdot = this.vstick.querySelector('.dot');
+    this.vline = document.getElementById('vstick-line');
+    this.cruiseEl = document.getElementById('cruise');
+    this.vignette = document.getElementById('warp-vignette');
   }
 
   project(rel, camera, w, h) {
@@ -112,6 +117,25 @@ export class HUD {
       this.prograde.style.transform = `translate(${s.x}px, ${s.y}px)`;
     } else this.prograde.style.display = 'none';
 
+    // joystick virtual
+    const stickOn = ship.mouseMode === 'stick';
+    this.vstick.classList.toggle('on', stickOn);
+    if (stickOn) {
+      const x = ship.stick.x * 60, y = ship.stick.y * 60;
+      this.vdot.style.transform = `translate(${x}px, ${y}px)`;
+      this.vline.setAttribute('x2', 60 + x); this.vline.setAttribute('y2', 60 + y);
+    }
+
+    // supercrucero
+    const charging = ship.cruise === 'charging';
+    this.cruiseEl.style.display = charging ? 'block' : 'none';
+    if (charging) {
+      this.el('cruise-fill').style.width = `${ship.cruiseCharge * 100}%`;
+      this.el('cruise-text').textContent = 'SUPERCRUCERO · CARGANDO';
+    }
+    const vig = charging ? ship.cruiseCharge * 0.8 : ship.cruise === 'on' ? 0.35 * Math.min(1, spd / Math.max(1, ship.vmax)) : 0;
+    this.vignette.style.opacity = vig.toFixed(3);
+
     // paneles
     const near = ship.nearest;
     this.el('t-date').textContent = simDate.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
@@ -121,6 +145,8 @@ export class HUD {
     this.el('t-sun').textContent = fmtDist(ship.world.length());
     this.el('t-speed').textContent = fmtSpeed(spd);
     this.el('t-vmax').textContent = fmtSpeed(ship.vmax);
+    const mode = ship.cruise === 'on' ? 'SUPERCRUCERO' : charging ? 'CARGANDO…' : 'NORMAL';
+    this.el('t-mode').textContent = mode + (ship.boost > 0.5 ? ' · BOOST' : '');
     this.el('t-light').textContent = fmtTime(ship.world.length() / C);
     const thr = ship.autopilot ? 'AUTO' : `${Math.round(ship.throttle * 100)}%`;
     this.el('t-throttle').textContent = thr;

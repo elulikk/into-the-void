@@ -73,7 +73,7 @@ export class SolarSystem {
       const group = new THREE.Group();          // posición + inclinación del eje
       group.quaternion.copy(b.tilt);
       const mat = b.id === 'sun'
-        ? new THREE.MeshBasicMaterial({ color: 0xffe2a0 })
+        ? new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffe2a0).multiplyScalar(6) })
         : new THREE.MeshStandardMaterial({ color: b.color, roughness: 0.95, metalness: 0 });
       if (real.includes(b.id)) tryRealTexture(b.id, mat);
       else this.textureQueue.push({ b, mat });
@@ -157,6 +157,7 @@ export class SolarSystem {
     if (!job) return false;
     job.mat.map = proceduralTexture(job.b.tex);
     job.mat.color.set(0xffffff);
+    if (job.b.id === 'sun') job.mat.color.setScalar(6); // HDR: el Sol alimenta el bloom
     job.mat.needsUpdate = true;
     return true;
   }

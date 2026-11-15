@@ -19,7 +19,7 @@ necesitás conexión a internet.
 | `float32` tiene ~7 dígitos: a 1 UA la precisión cae a ~16 km | La simulación usa `double` de JS (metros). La cámara está **siempre en el origen** y todo se dibuja relativo a ella (`system.syncRender`). |
 | Z-fighting entre 0,5 m (la nave) y 10¹⁵ m | `logarithmicDepthBuffer: true` en el renderer. |
 | Los planetas se mueven a ~30 km/s y hay aceleración temporal | La nave guarda su posición **relativa al cuerpo dominante** (esfera de influencia). Al cambiar de SOI cambia de marco (`ship.js`). |
-| Distancias enormes | **Supercrucero**: la velocidad máxima es ~0,75 × la altitud sobre el cuerpo más cercano. Ir de la Tierra a Saturno lleva unos 40 s. |
+| Distancias enormes | **Supercrucero** (tecla J): la velocidad máxima es ~0,75 × la altitud sobre el cuerpo más cercano. Sin él, el tope es 3 km/s. |
 | Un cuerpo lejano mide menos de 1 píxel | Puntos de tamaño fijo y marcadores en el HUD. |
 | Estrellas | Escena aparte que sólo comparte la rotación de la cámara. |
 
@@ -43,8 +43,9 @@ Por defecto las texturas son procedurales. Para usar texturas reales:
 
 Pulsá **H** dentro del juego para ver todos los controles.
 
-- Hacé clic para capturar el mouse.
-- **W/S**: acelerador.
+- Hacé clic para capturar el mouse. El mouse funciona como joystick virtual (V cambia a mouse directo).
+- **W/S**: acelerador. **Shift**: boost. **J**: supercrucero.
+- **Botón derecho / Alt**: vista libre.
 - **0–8**: elegir objetivo.
 - **G**: piloto automático al objetivo.
 - **, y .**: aceleración temporal.

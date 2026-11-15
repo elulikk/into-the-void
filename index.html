@@ -42,6 +42,24 @@
   #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; clip-path: inset(0 0 14px 0); }
   #crosshair::after { left: 0; top: 10px; width: 22px; height: 2px; clip-path: inset(0 15px 0 0); }
 
+
+  #vstick { position: fixed; left: 50%; top: 50%; width: 0; height: 0; pointer-events: none; display: none; }
+  body.locked #vstick.on { display: block; }
+  #vstick .ring { position: absolute; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%;
+    border: 1px solid rgba(111, 211, 255, 0.18); }
+  #vstick .dead { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%;
+    border: 1px solid rgba(111, 211, 255, 0.3); }
+  #vstick .dot { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  #vstick svg { position: absolute; left: -60px; top: -60px; overflow: visible; }
+  #cruise { position: fixed; left: 50%; top: 22%; transform: translateX(-50%); pointer-events: none; text-align: center;
+    letter-spacing: 0.25em; color: var(--accent); font-weight: 600; text-shadow: 0 0 8px rgba(111, 211, 255, 0.8);
+    display: none; }
+  #cruise .bar { width: 220px; margin: 6px auto 0; }
+  #cruise .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+  #warp-vignette { position: fixed; inset: 0; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(60, 140, 255, 0.35) 100%); }
+
   .panel { position: fixed; background: var(--panel); border: 1px solid var(--line); padding: 10px 12px;
     backdrop-filter: blur(4px); min-width: 230px; }
   .panel h3 { margin: 0 0 6px; font-size: 10px; letter-spacing: 0.14em; color: var(--accent); font-weight: 600; }
@@ -83,7 +101,10 @@
   }
 </style>
 <script type="importmap">
-  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  { "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  } }
 </script>
 </head>
 <body>
@@ -92,6 +113,11 @@
   <div id="target-arrow" style="display:none"></div>
   <div id="prograde" style="display:none"></div>
   <div id="crosshair"></div>
+  <div id="vstick"><div class="ring"></div><div class="dead"></div>
+    <svg width="120" height="120"><line id="vstick-line" x1="60" y1="60" x2="60" y2="60" stroke="rgba(111,211,255,0.45)" stroke-width="1.5"/></svg>
+    <div class="dot"></div></div>
+  <div id="warp-vignette"></div>
+  <div id="cruise"><span id="cruise-text">SUPERCRUCERO</span><div class="bar"><i id="cruise-fill"></i></div></div>
 
   <div class="panel" id="p-time">
     <h3>TIEMPO</h3>
@@ -106,7 +132,8 @@
     <div class="row"><span>Distancia al Sol</span><b id="t-sun"></b></div>
     <div class="row"><span>Luz solar tarda</span><b id="t-light"></b></div>
     <div class="row"><span>Velocidad</span><b id="t-speed"></b></div>
-    <div class="row"><span>Límite supercrucero</span><b id="t-vmax"></b></div>
+    <div class="row"><span>Velocidad máxima</span><b id="t-vmax"></b></div>
+    <div class="row"><span>Modo</span><b id="t-mode"></b></div>
     <div class="row"><span>Acelerador</span><b id="t-throttle"></b></div>
     <div class="bar"><i id="throttle-fill"></i></div>
   </div>
@@ -130,24 +157,30 @@
     <div class="panel">
       <h3>CONTROLES</h3>
       <table>
-        <tr><td>Clic / Esc</td><td>Capturar / liberar el mouse (mouse = cabeceo y guiñada)</td></tr>
+        <tr><td>Clic / Esc</td><td>Capturar / liberar el mouse</td></tr>
+        <tr><td>Mouse</td><td>Joystick virtual: cuanto más lejos del centro, más rápido girás (el punto celeste)</td></tr>
+        <tr><td>V</td><td>Cambiar a mouse directo / joystick virtual</td></tr>
+        <tr><td>Botón der. / Alt</td><td>Mantener: vista libre alrededor de la nave</td></tr>
         <tr><td>W / S</td><td>Subir / bajar acelerador (S por debajo de 0 = reversa)</td></tr>
         <tr><td>A D · R F</td><td>Desplazamiento lateral · arriba/abajo</td></tr>
         <tr><td>Q / E</td><td>Alabeo</td></tr>
         <tr><td>Flechas</td><td>Rotar sin mouse</td></tr>
-        <tr><td>Shift</td><td>Turbo ×4</td></tr>
-        <tr><td>X</td><td>Frenar</td></tr>
-        <tr><td>Rueda</td><td>Factor del supercrucero</td></tr>
+        <tr><td>Shift</td><td>Boost ×4</td></tr>
+        <tr><td>J</td><td>Supercrucero (carga 1,5 s; sin él, máximo 3 km/s)</td></tr>
+        <tr><td>X</td><td>Frenar, salir del supercrucero y centrar el joystick</td></tr>
+        <tr><td>Rueda</td><td>Factor de velocidad</td></tr>
         <tr><td>0 – 8</td><td>Objetivo: Sol, Mercurio … Neptuno</td></tr>
         <tr><td>Tab / Shift+Tab</td><td>Objetivo siguiente / anterior</td></tr>
         <tr><td>N</td><td>Siguiente luna del sistema del objetivo</td></tr>
-        <tr><td>G</td><td>Piloto automático al objetivo</td></tr>
+        <tr><td>G</td><td>Piloto automático al objetivo (activa el supercrucero)</td></tr>
         <tr><td>, / .</td><td>Aceleración temporal (×1 … ×1.000.000)</td></tr>
         <tr><td>P · Backspace</td><td>Pausar el tiempo · volver a la fecha actual</td></tr>
         <tr><td>C · L · O</td><td>Cámara 1ª/3ª persona · etiquetas · órbitas</td></tr>
+        <tr><td>B · M</td><td>Bloom · silenciar sonido</td></tr>
+        <tr><td>Gamepad</td><td>Se detecta solo al tocar un botón</td></tr>
         <tr><td>H</td><td>Mostrar / ocultar esta ayuda</td></tr>
       </table>
-      <p>Todo está a escala real 1:1. El supercrucero limita la velocidad a ~0,75 × la altitud sobre el
+      <p>Todo está a escala real 1:1. En supercrucero la velocidad máxima es ~0,75 × la altitud sobre el
         cuerpo más cercano: cerca de un planeta vas lento, en el espacio vacío cruzás UAs en segundos.</p>
     </div>
   </div>

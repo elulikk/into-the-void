@@ -1,15 +1,20 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SolarSystem } from './system.js';
 import { Ship } from './ship.js';
+import { ChaseCamera } from './camera.js';
+import { SpaceDust } from './dust.js';
 import { HUD } from './hud.js';
 import { julianDate, poleToEcliptic } from './ephemeris.js';
 import { eclToThree } from './system.js';
 
 // ---------- renderer y cámaras
-const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+const renderer = new THREE.WebGLRenderer({ antialias: false, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.autoClear = false;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 document.getElementById('app').appendChild(renderer.domElement);
@@ -24,10 +29,27 @@ const bgScene = new THREE.Scene();
 const bgCam = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 1, 5000);
 buildStars(bgScene);
 
-addEventListener('resize', () => {
+// ---------- post-proceso: HDR + bloom (el Sol y los motores brillan)
+const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+const composer = new EffectComposer(renderer, rt);
+const bgPass = new RenderPass(bgScene, bgCam);
+const mainPass = new RenderPass(scene, camera);
+mainPass.clear = false;
+mainPass.clearDepth = true;
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.55, 2.2);
+composer.addPass(bgPass);
+composer.addPass(mainPass);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+function resize() {
   for (const c of [camera, bgCam]) { c.aspect = innerWidth / innerHeight; c.updateProjectionMatrix(); }
   renderer.setSize(innerWidth, innerHeight);
-});
+  composer.setPixelRatio(renderer.getPixelRatio());
+  composer.setSize(innerWidth, innerHeight);
+}
+addEventListener('resize', resize);
+resize();
 
 function buildStars(target) {
   // Distribución: estrellas al azar + concentración en el plano galáctico
@@ -77,6 +99,8 @@ let paused = false;
 // ---------- construir
 const system = new SolarSystem(scene);
 const ship = new Ship(scene);
+const cam = new ChaseCamera(65);
+const dust = new SpaceDust(scene);
 const loading = document.getElementById('loading');
 await system.build((name, p) => {
   loading.querySelector('.bar i').style.width = `${p * 100}%`;
@@ -93,38 +117,68 @@ system.update(julianDate(simMs));
     .normalize().multiplyScalar(22000e3);
   ship.place(earth, offset, earth.pos);
   ship.target = system.byId.moon;
-  ship.status = 'Objetivo: Luna. Pulsá G para el piloto automático, o H para ver los controles.';
+  ship.status = 'Objetivo: Luna. G = piloto automático · J = supercrucero · H = controles';
 }
 
-window.__game = { ship, system, renderer, scene, camera }; // para depurar desde la consola
+// módulos opcionales (sonido y gamepad): si no están o fallan, el juego sigue igual
+let audio = null, pad = null;
+import('./audio.js').then(m => { audio = new m.ShipAudio(); }).catch(e => console.warn('Sin sonido:', e.message));
+import('./gamepad.js').then(m => { pad = new m.GamepadInput(); }).catch(e => console.warn('Sin gamepad:', e.message));
+
+window.__game = { ship, system, renderer, scene, camera, cam, composer, bloom }; // para depurar desde la consola
 const hud = new HUD(system, ship, b => { ship.target = b; ship.status = `Objetivo: ${b.name}`; });
 loading.classList.add('done');
 
 // ---------- entrada
 const canvas = renderer.domElement;
-canvas.addEventListener('click', () => canvas.requestPointerLock());
+let rightHeld = false, altHeld = false;
+canvas.addEventListener('click', () => { canvas.requestPointerLock(); audio?.resume(); });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('mousedown', e => { if (e.button === 2) rightHeld = true; audio?.resume(); });
+addEventListener('mouseup', e => { if (e.button === 2) rightHeld = false; });
 document.addEventListener('pointerlockchange', () => {
-  document.body.classList.toggle('locked', document.pointerLockElement === canvas);
+  const locked = document.pointerLockElement === canvas;
+  document.body.classList.toggle('locked', locked);
+  if (!locked) ship.recenter();
 });
 document.addEventListener('mousemove', e => {
-  if (document.pointerLockElement === canvas) { ship.mouse.dx += e.movementX; ship.mouse.dy += e.movementY; }
+  if (document.pointerLockElement !== canvas) return;
+  if (cam.freelook) cam.freelookInput(e.movementX, e.movementY);
+  else { ship.mouse.dx += e.movementX; ship.mouse.dy += e.movementY; }
 });
 addEventListener('wheel', e => {
   ship.speedFactor = Math.min(20, Math.max(0.05, ship.speedFactor * (e.deltaY > 0 ? 0.85 : 1.18)));
-  ship.status = `Factor de supercrucero ×${ship.speedFactor.toFixed(2)}`;
+  ship.status = `Factor de velocidad ×${ship.speedFactor.toFixed(2)}`;
 }, { passive: true });
 
 const ORDER = system.bodies;
 const PLANET_KEYS = ['sun', 'mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
 function setTarget(b) { ship.target = b; ship.status = `Objetivo: ${b.name}`; if (ship.autopilot) ship.engage(); }
 
-addEventListener('keydown', e => {
-  ship.keys.add(e.code);
-  if (e.code === 'Tab') {
-    e.preventDefault();
-    const i = ORDER.indexOf(ship.target);
-    setTarget(ORDER[(i + (e.shiftKey ? -1 : 1) + ORDER.length) % ORDER.length]);
+function action(name, shift = false) {
+  switch (name) {
+    case 'nextTarget': case 'prevTarget': {
+      const i = ORDER.indexOf(ship.target);
+      const dir = name === 'prevTarget' || shift ? -1 : 1;
+      setTarget(ORDER[(i + dir + ORDER.length) % ORDER.length]);
+      break;
+    }
+    case 'autopilot': ship.autopilot ? ship.disengage('manual') : ship.engage(); break;
+    case 'cruise': ship.toggleCruise(); if (ship.autopilot && ship.cruise === 'off') ship.disengage('supercrucero'); break;
+    case 'brake':
+      ship.throttle = 0; ship.disengage('freno'); ship.dropCruise('freno'); ship.recenter(); ship.status = 'Detenido';
+      break;
+    case 'camera': ship.thirdPerson = !ship.thirdPerson; break;
+    case 'labels': hud.showLabels = !hud.showLabels; break;
+    case 'help': document.getElementById('help').classList.toggle('show'); break;
   }
+}
+
+addEventListener('keydown', e => {
+  if (e.repeat && !/^(Arrow|Key[WSADRFQE])/.test(e.code)) return;
+  ship.keys.add(e.code);
+  if (e.code === 'AltLeft' || e.code === 'AltRight') { e.preventDefault(); altHeld = true; }
+  if (e.code === 'Tab') { e.preventDefault(); action('nextTarget', e.shiftKey); }
   if (/^Digit[0-8]$/.test(e.code)) setTarget(system.byId[PLANET_KEYS[+e.code.slice(5)]]);
   if (e.code === 'KeyN' && ship.target) {
     // siguiente luna del sistema del objetivo
@@ -132,23 +186,34 @@ addEventListener('keydown', e => {
     const list = [host, ...host.children];
     if (list.length > 1) setTarget(list[(list.indexOf(ship.target) + 1) % list.length]);
   }
-  if (e.code === 'KeyG') ship.autopilot ? ship.disengage('manual') : ship.engage();
-  if (e.code === 'KeyX') { ship.throttle = 0; ship.disengage('freno'); ship.status = 'Detenido'; }
-  if (e.code === 'KeyC') ship.thirdPerson = !ship.thirdPerson;
-  if (e.code === 'KeyL') hud.showLabels = !hud.showLabels;
+  if (e.code === 'KeyG') action('autopilot');
+  if (e.code === 'KeyJ') action('cruise');
+  if (e.code === 'KeyX') action('brake');
+  if (e.code === 'KeyC') action('camera');
+  if (e.code === 'KeyL') action('labels');
+  if (e.code === 'KeyH') action('help');
   if (e.code === 'KeyO') system.orbitGroup.visible = !system.orbitGroup.visible;
-  if (e.code === 'KeyH') document.getElementById('help').classList.toggle('show');
+  if (e.code === 'KeyV') {
+    ship.mouseMode = ship.mouseMode === 'stick' ? 'direct' : 'stick';
+    ship.recenter();
+    ship.status = ship.mouseMode === 'stick' ? 'Mouse: joystick virtual' : 'Mouse: directo';
+  }
+  if (e.code === 'KeyB') { bloom.enabled = !bloom.enabled; ship.status = `Bloom ${bloom.enabled ? 'activado' : 'desactivado'}`; }
+  if (e.code === 'KeyM' && audio) { audio.muted = !audio.muted; audio.setMuted(audio.muted); ship.status = audio.muted ? 'Sonido silenciado' : 'Sonido activado'; }
   if (e.code === 'Period') warpIdx = Math.min(WARPS.length - 1, warpIdx + 1);
   if (e.code === 'Comma') warpIdx = Math.max(0, warpIdx - 1);
   if (e.code === 'KeyP') paused = !paused;
   if (e.code === 'Backspace') { simMs = Date.now(); warpIdx = 0; ship.status = 'Fecha reiniciada a ahora'; }
 });
-addEventListener('keyup', e => ship.keys.delete(e.code));
-addEventListener('blur', () => ship.keys.clear());
+addEventListener('keyup', e => {
+  ship.keys.delete(e.code);
+  if (e.code === 'AltLeft' || e.code === 'AltRight') altHeld = false;
+});
+addEventListener('blur', () => { ship.keys.clear(); rightHeld = altHeld = false; });
 
 // ---------- bucle
 const clock = new THREE.Clock();
-const camWorld = new THREE.Vector3();
+const renderQuat = new THREE.Quaternion();
 let frameCount = 0;
 function frame() {
   const dt = Math.min(0.1, clock.getDelta());
@@ -156,27 +221,46 @@ function frame() {
   if (system.textureQueue.length && (frameCount++ % 10 === 0)) system.generateNextTexture();
   if (!paused) simMs += dt * 1000 * WARPS[warpIdx];
   system.update(julianDate(simMs));
+
+  // gamepad
+  let padState = null;
+  if (pad) {
+    const s = pad.poll();
+    if (pad.connected) {
+      padState = s;
+      for (const [name, on] of Object.entries(s.pressed || {})) if (on) action(name);
+    }
+  }
+  cam.freelook = rightHeld || altHeld || !!padState?.freelookHeld;
+
   // re-anclar la nave a su marco con las posiciones nuevas antes de moverla
   ship.world.copy(ship.frame.pos).add(ship.local);
-  ship.update(dt, system);
+  ship.update(dt, system, padState);
+  cam.update(dt, ship);
 
   // cámara: posición absoluta en doubles → todo se dibuja relativo a ella
-  camWorld.copy(ship.cameraOffset()).applyQuaternion(ship.quat).add(ship.world);
+  const camWorld = cam.world;
   camera.position.set(0, 0, 0);
-  camera.quaternion.copy(ship.quat);
+  camera.quaternion.copy(cam.quat);
+  if (Math.abs(camera.fov - cam.fov) > 0.01) {
+    camera.fov = bgCam.fov = cam.fov;
+    camera.updateProjectionMatrix(); bgCam.updateProjectionMatrix();
+  }
   camera.updateMatrixWorld();
   ship.model.position.subVectors(ship.world, camWorld);
-  ship.model.quaternion.copy(ship.quat);
+  ship.model.quaternion.copy(ship.renderQuat(renderQuat));
   ship.model.visible = ship.thirdPerson;
   system.syncRender(camWorld, camera, ship.world, ship.frame);
 
-  bgCam.quaternion.copy(camera.quaternion);
-  renderer.clear();
-  renderer.render(bgScene, bgCam);
-  renderer.clearDepth();
-  renderer.render(scene, camera);
+  const speed01 = Math.min(1, ship.vel.length() / Math.max(1, ship.vmax));
+  dust.update(dt, ship.vel, speed01, ship.cruise === 'on' ? 1 : 0);
 
+  bgCam.quaternion.copy(camera.quaternion);
+  composer.render(dt);
+
+  audio?.update(ship.audioState(), dt);
   hud.update(camera, new Date(simMs), WARPS[warpIdx], paused);
+  ship.events.length = 0;
   requestAnimationFrame(frame);
 }
 frame();

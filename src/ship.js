@@ -1,4 +1,4 @@
-// Nave: modelo, controles y "supercrucero" adaptativo.
+// Nave: modelo, modelo de vuelo arcade y supercrucero.
 // La posición se guarda RELATIVA al cuerpo dominante (marco de referencia),
 // así la nave acompaña a la Tierra/Luna/etc. aunque aceleres el tiempo.
 import * as THREE from 'three';
@@ -40,7 +40,7 @@ function buildModel() {
   fin.position.set(0, 2.3, 4.5);
   g.add(fin);
 
-  const flameMat = new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.8,
+  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x66ccff).multiplyScalar(2.5), transparent: true, opacity: 0.8,
     blending: THREE.AdditiveBlending, depthWrite: false });
   const flames = [];
   for (const x of [-2.6, 0, 2.6]) {
@@ -59,6 +59,22 @@ function buildModel() {
   return g;
 }
 
+// ---- parámetros de manejo (arcade)
+const RATE = { pitch: 1.5, yaw: 1.25, roll: 2.6 };     // rad/s máximos
+const RESP = { pitch: 6, yaw: 5, roll: 8 };            // respuesta del giro (1/s): más alto = más seco
+const NORMAL_CAP = 3000;                                // m/s sin supercrucero
+const CRUISE_CHARGE = 1.5;                              // s de carga del supercrucero
+const STICK_PX = 260;                                   // px de mouse para llegar al tope del joystick virtual
+const DEAD = 0.05;
+
+const expK = (k, dt) => 1 - Math.exp(-k * dt);
+function shape(v) {
+  const a = Math.abs(v);
+  if (a < DEAD) return 0;
+  return Math.sign(v) * Math.pow((a - DEAD) / (1 - DEAD), 1.5);
+}
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
+
 export class Ship {
   constructor(scene) {
     this.model = buildModel();
@@ -69,14 +85,22 @@ export class Ship {
     this.vel = new THREE.Vector3();        // velocidad relativa al marco (m/s)
     this.quat = new THREE.Quaternion();
     this.throttle = 0;                     // -0.25 .. 1
-    this.speedFactor = 1;                  // multiplicador del supercrucero
+    this.speedFactor = 1;                  // multiplicador (rueda del mouse)
     this.vmax = 0;
     this.autopilot = false;
     this.target = null;
     this.thirdPerson = true;
     this.keys = new Set();
     this.mouse = { dx: 0, dy: 0 };
-    this.angVel = new THREE.Vector3();
+    this.mouseMode = 'stick';              // 'stick' (joystick virtual) | 'direct'
+    this.stick = new THREE.Vector2();      // -1..1, posición del joystick virtual
+    this.angVel = new THREE.Vector3();     // rad/s en ejes locales (x cabeceo, y guiñada, z alabeo)
+    this.boost = 0;                        // 0..1 con rampa
+    this.cruise = 'off';                   // 'off' | 'charging' | 'on'
+    this.cruiseCharge = 0;                 // 0..1
+    this.events = [];                      // eventos para cámara/sonido ('cruise-on', 'cruise-drop', ...)
+    this.strafe = new THREE.Vector2();
+    this.visualTilt = new THREE.Vector3(); // inclinación cosmética del modelo
     this.status = '';
   }
 
@@ -91,54 +115,135 @@ export class Ship {
 
   forward(out = new THREE.Vector3()) { return out.set(0, 0, -1).applyQuaternion(this.quat); }
 
-  update(dt, system) {
+  recenter() { this.stick.set(0, 0); }
+
+  toggleCruise() {
+    if (this.cruise === 'off') { this.cruise = 'charging'; this.cruiseCharge = 0; this.status = 'Supercrucero: cargando…'; }
+    else this.dropCruise('manual');
+  }
+
+  dropCruise(reason) {
+    if (this.cruise === 'off') return;
+    const was = this.cruise;
+    this.cruise = 'off'; this.cruiseCharge = 0;
+    if (was === 'on') this.events.push('cruise-drop');
+    this.status = `Supercrucero desactivado (${reason})`;
+  }
+
+  update(dt, system, pad = null) {
     this.system = system;
     const k = this.keys;
-    // ---- rotación (mouse + Q/E, o flechas)
-    const inp = new THREE.Vector3(
-      -this.mouse.dy * 0.0022 + ((k.has('ArrowDown') ? 1 : 0) - (k.has('ArrowUp') ? 1 : 0)) * 1.2 * dt,
-      -this.mouse.dx * 0.0022 + ((k.has('ArrowLeft') ? 1 : 0) - (k.has('ArrowRight') ? 1 : 0)) * 1.2 * dt,
-      ((k.has('KeyQ') ? 1 : 0) - (k.has('KeyE') ? 1 : 0)) * 1.6 * dt,
-    );
+    const key = c => (k.has(c) ? 1 : 0);
+
+    // ================= rotación =================
+    let pitchIn = key('ArrowUp') - key('ArrowDown');   // + = nariz arriba
+    let yawIn = key('ArrowRight') - key('ArrowLeft');   // + = a la derecha
+    let rollIn = key('KeyE') - key('KeyQ');             // + = alabeo a la derecha
+    let directRate = null;
+    if (this.mouseMode === 'stick') {
+      this.stick.x += this.mouse.dx / STICK_PX;
+      this.stick.y += this.mouse.dy / STICK_PX;
+      if (this.stick.lengthSq() > 1) this.stick.normalize();
+      pitchIn += -shape(this.stick.y);
+      yawIn += shape(this.stick.x);
+    } else if (dt > 0) {
+      // mouse directo: el desplazamiento se convierte en velocidad angular
+      directRate = new THREE.Vector2(-this.mouse.dy * 0.0022 / dt, -this.mouse.dx * 0.0022 / dt);
+    }
     this.mouse.dx = this.mouse.dy = 0;
-    const manualTurn = inp.lengthSq() > 1e-7;
-    if (manualTurn && this.autopilot && inp.lengthSq() > 1e-4) this.disengage('rumbo manual');
-    this.angVel.lerp(inp, Math.min(1, dt * 18));
-    const dq = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.angVel.x, this.angVel.y, this.angVel.z, 'YXZ'));
-    this.quat.multiply(dq).normalize();
+    if (pad) { pitchIn += pad.pitch; yawIn += pad.yaw; rollIn += pad.roll; }
+    pitchIn = THREE.MathUtils.clamp(pitchIn, -1, 1);
+    yawIn = THREE.MathUtils.clamp(yawIn, -1, 1);
+    rollIn = THREE.MathUtils.clamp(rollIn, -1, 1);
 
-    // ---- acelerador
-    if (k.has('KeyW')) { this.throttle = Math.min(1, this.throttle + dt * 0.6); if (this.autopilot) this.disengage('acelerador'); }
-    if (k.has('KeyS')) { this.throttle = Math.max(-0.25, this.throttle - dt * 0.6); if (this.autopilot) this.disengage('acelerador'); }
+    const steering = Math.abs(pitchIn) + Math.abs(yawIn) + Math.abs(rollIn) > 0.02 ||
+      (directRate && directRate.lengthSq() > 1e-4);
+    if (steering && this.autopilot) this.disengage('rumbo manual');
 
-    // ---- supercrucero: la velocidad máxima escala con la altitud al cuerpo más cercano
     const near = system.nearestSurface(this.world);
     this.nearest = near;
-    const boost = k.has('ShiftLeft') || k.has('ShiftRight') ? 4 : 1;
-    this.vmax = Math.max(30, near.alt * 0.75) * this.speedFactor * boost;
 
+    if (!this.autopilot) {
+      const target = new THREE.Vector3(pitchIn * RATE.pitch, -yawIn * RATE.yaw, -rollIn * RATE.roll);
+      if (directRate) { target.x += directRate.x; target.y += directRate.y; }
+
+      // auto-nivelación cerca de un planeta: alinear el "arriba" de la nave con la vertical local
+      const b = near.body;
+      if (b && b.id !== 'sun' && Math.abs(rollIn) < 0.05) {
+        const s = 1 - THREE.MathUtils.smoothstep(near.alt, b.R * 0.3, b.R * 1.5);
+        if (s > 0) {
+          const up = _v.subVectors(this.world, b.pos).normalize().applyQuaternion(_q.copy(this.quat).invert());
+          if (Math.abs(up.z) < 0.92) {
+            const err = Math.atan2(-up.x, up.y);
+            target.z += THREE.MathUtils.clamp(err * 1.5, -1.2, 1.2) * s;
+          }
+        }
+      }
+      const r = directRate ? 25 : 0;
+      this.angVel.x += (target.x - this.angVel.x) * expK(r || RESP.pitch, dt);
+      this.angVel.y += (target.y - this.angVel.y) * expK(r || RESP.yaw, dt);
+      this.angVel.z += (target.z - this.angVel.z) * expK(RESP.roll, dt);
+      _q.setFromEuler(_e.set(this.angVel.x * dt, this.angVel.y * dt, this.angVel.z * dt, 'YXZ'));
+      this.quat.multiply(_q).normalize();
+    }
+
+    // ================= acelerador, boost, supercrucero =================
+    const thrUp = key('KeyW') + (pad && pad.throttle > 0.1 ? pad.throttle : 0);
+    const thrDn = key('KeyS') + (pad && pad.throttle < -0.1 ? -pad.throttle : 0);
+    if (thrUp || thrDn) {
+      this.throttle = THREE.MathUtils.clamp(this.throttle + (thrUp - thrDn) * dt * 0.8, -0.25, 1);
+      if (this.autopilot) this.disengage('acelerador');
+    }
+    const boosting = key('ShiftLeft') || key('ShiftRight') || (pad && pad.boost);
+    this.boost += ((boosting ? 1 : 0) - this.boost) * expK(boosting ? 2.5 : 1.5, dt);
+
+    if (this.cruise === 'charging') {
+      this.cruiseCharge = Math.min(1, this.cruiseCharge + dt / CRUISE_CHARGE);
+      if (this.cruiseCharge >= 1) {
+        this.cruise = 'on';
+        this.events.push('cruise-on');
+        if (!this.autopilot) this.status = 'Supercrucero activo';
+      }
+    }
+
+    const altV = Math.max(40, near.alt * 0.75) * this.speedFactor;
+    let vTarget = this.cruise === 'on' ? altV : Math.min(altV, NORMAL_CAP * this.speedFactor);
+    vTarget *= 1 + 3 * this.boost;
+    // subir suave (no hay saltos al cambiar de cuerpo), bajar inmediato (no chocar)
+    if (!this.vmax || vTarget < this.vmax) this.vmax = vTarget;
+    else this.vmax += (vTarget - this.vmax) * expK(1.5, dt);
+
+    // ================= velocidad (arcade: sin deriva) =================
     const fwd = this.forward();
-    let desired = new THREE.Vector3();
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.quat);
+    const upV = new THREE.Vector3(0, 1, 0).applyQuaternion(this.quat);
+    this.strafe.set(key('KeyD') - key('KeyA'), key('KeyR') - key('KeyF'));
+    if (pad) { this.strafe.x += pad.strafeX; this.strafe.y += pad.strafeY; }
+    this.strafe.clampScalar(-1, 1);
+
+    let desired;
     if (this.autopilot && this.target) {
       desired = this.autopilotStep(dt, fwd);
     } else {
-      desired.copy(fwd).multiplyScalar(this.throttle * this.vmax);
-      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.quat);
-      const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.quat);
-      const strafe = 0.35 * this.vmax;
-      if (k.has('KeyD')) desired.addScaledVector(right, strafe);
-      if (k.has('KeyA')) desired.addScaledVector(right, -strafe);
-      if (k.has('KeyR')) desired.addScaledVector(up, strafe);
-      if (k.has('KeyF')) desired.addScaledVector(up, -strafe);
+      desired = fwd.clone().multiplyScalar(this.throttle * this.vmax);
+      const sv = 0.35 * Math.min(this.vmax, NORMAL_CAP * this.speedFactor);
+      desired.addScaledVector(right, this.strafe.x * sv).addScaledVector(upV, this.strafe.y * sv);
     }
-    // asistencia de vuelo: la velocidad converge a la deseada
-    this.vel.lerp(desired, Math.min(1, dt * 3));
-    if (this.vel.length() > this.vmax * 1.05) this.vel.setLength(this.vmax * 1.05);
+    const diff = _v.subVectors(desired, this.vel);
+    const along = diff.dot(fwd);
+    const lateral = _v2.copy(diff).addScaledVector(fwd, -along);
+    this.vel.addScaledVector(fwd, along * expK(along > 0 ? 1.6 : 2.4, dt));
+    this.vel.addScaledVector(lateral, expK(5, dt));
+    const spd = this.vel.length();
+    if (spd > this.vmax * 1.05) {
+      if (spd > this.vmax * 3 && spd > NORMAL_CAP) this.events.push('slam');  // frenada brusca
+      this.vel.setLength(this.vmax * 1.05);
+    }
 
     this.local.addScaledVector(this.vel, dt);
     this.world.copy(this.frame.pos).add(this.local);
 
-    // ---- colisión simple con superficies
+    // ================= colisión simple con superficies =================
     for (const b of system.bodies) {
       const d = this.world.distanceTo(b.pos);
       const minD = b.R + 15;
@@ -148,24 +253,40 @@ export class Ship {
         const vn = this.vel.dot(n);
         if (vn < 0) this.vel.addScaledVector(n, -vn);
         this.local.subVectors(this.world, this.frame.pos);
+        if (this.cruise !== 'off') this.dropCruise('superficie');
       }
     }
 
-    // ---- cambio de marco de referencia (SOI)
+    // ================= cambio de marco de referencia (SOI) =================
     const dom = system.dominantBody(this.world);
     if (dom !== this.frame) {
       this.frame = dom;
       this.local.subVectors(this.world, dom.pos);
     }
 
-    // ---- efectos de motor
+    // ================= inclinación cosmética del modelo =================
+    const tilt = new THREE.Vector3(
+      this.angVel.x * 0.12,
+      0,
+      this.angVel.y * 0.45 - this.strafe.x * 0.18,
+    );
+    this.visualTilt.lerp(tilt, expK(6, dt));
+
+    // ================= efectos de motor =================
     const thrust = Math.max(0, this.autopilot ? this.vel.length() / Math.max(1, this.vmax) : this.throttle);
+    const fl = 0.3 + thrust * 6 * (1 + this.boost * 0.8);
     for (const f of this.model.userData.flames) {
-      f.scale.set(1, 0.3 + thrust * 6 * (0.9 + Math.random() * 0.2), 1);
+      f.scale.set(1 + this.boost * 0.3, fl * (0.9 + Math.random() * 0.2), 1 + this.boost * 0.3);
       f.position.z = 7 + f.scale.y * 0.5;
     }
     this.model.userData.flameMat.opacity = 0.2 + thrust * 0.7;
-    this.model.userData.engineLight.intensity = thrust * 40;
+    this.model.userData.engineLight.intensity = thrust * 40 * (1 + this.boost);
+  }
+
+  // cuaternión con el que se dibuja el modelo (física + inclinación cosmética)
+  renderQuat(out = new THREE.Quaternion()) {
+    _q.setFromEuler(_e.set(this.visualTilt.x, 0, this.visualTilt.z, 'YXZ'));
+    return out.copy(this.quat).multiply(_q);
   }
 
   autopilotStep(dt, fwd) {
@@ -180,9 +301,9 @@ export class Ship {
     for (const b of this.system.bodies) {
       if (b === t) continue;
       const rel = new THREE.Vector3().subVectors(b.pos, this.world);
-      const along = rel.dot(dir);
-      if (along <= 0 || along >= dist) continue;
-      const closest = this.world.clone().addScaledVector(dir, along);
+      const al = rel.dot(dir);
+      if (al <= 0 || al >= dist) continue;
+      const closest = this.world.clone().addScaledVector(dir, al);
       const off = new THREE.Vector3().subVectors(closest, b.pos);
       if (off.length() > b.R * 1.6) continue;
       if (off.lengthSq() < 1) off.set(0, 1, 0).applyQuaternion(this.quat);
@@ -190,18 +311,28 @@ export class Ship {
       dir = new THREE.Vector3().subVectors(aim, this.world).normalize();
       break;
     }
-    // orientar hacia el objetivo (o el punto de desvío)
+    // orientar hacia el objetivo (o el punto de desvío), guardando la velocidad angular para la cámara
     const m = new THREE.Matrix4().lookAt(this.world, aim, new THREE.Vector3(0, 1, 0).applyQuaternion(this.quat));
     const q = new THREE.Quaternion().setFromRotationMatrix(m);
-    this.quat.slerp(q, Math.min(1, dt * 2.5));
+    const before = this.quat.clone();
+    this.quat.slerp(q, expK(2.5, dt));
+    const dq = before.invert().multiply(this.quat);
+    const ang = 2 * Math.acos(Math.min(1, Math.abs(dq.w)));
+    const axis = new THREE.Vector3(dq.x, dq.y, dq.z);
+    if (axis.lengthSq() > 1e-12 && dt > 0) this.angVel.copy(axis.normalize().multiplyScalar(Math.sign(dq.w) * ang / dt));
+    else this.angVel.set(0, 0, 0);
+
     const align = fwd.dot(dir);
     if (remaining < Math.max(20, t.R * 0.02) && this.vel.length() < Math.max(50, remaining)) {
       this.disengage(`llegada a ${t.name}`);
+      this.dropCruise('llegada');
+      this.status = `Llegada a ${t.name}`;
       this.vel.set(0, 0, 0);
       return new THREE.Vector3();
     }
     const speed = Math.min(this.vmax, Math.max(0, remaining) * 1.2) * Math.max(0, (align - 0.9) * 10);
-    this.status = `Piloto automático → ${t.name}`;
+    this.status = this.cruise === 'charging' ? `Piloto automático → ${t.name} · cargando supercrucero…`
+      : `Piloto automático → ${t.name}`;
     return dir.multiplyScalar(speed * Math.sign(remaining));
   }
 
@@ -209,6 +340,8 @@ export class Ship {
     if (!this.target) return;
     this.autopilot = true;
     this.throttle = 0;
+    this.recenter();
+    if (this.cruise === 'off') { this.cruise = 'charging'; this.cruiseCharge = 0; }
     this.status = `Piloto automático → ${this.target.name}`;
   }
 
@@ -217,7 +350,19 @@ export class Ship {
     this.status = `Piloto automático desactivado (${reason})`;
   }
 
-  cameraOffset() {
-    return this.thirdPerson ? new THREE.Vector3(0, 9, 42) : new THREE.Vector3(0, 1.2, -5.5);
+  // estado para el sonido (src/audio.js)
+  audioState() {
+    const b = this.nearest?.body;
+    const atmo = b && b.atmo ? Math.exp(-Math.max(0, this.nearest.alt) / (b.R * 0.0015)) : 0;
+    return {
+      throttle: Math.max(0, this.throttle),
+      speed01: Math.min(1, this.vel.length() / Math.max(1, this.vmax)),
+      boost: this.boost,
+      cruiseCharge: this.cruise === 'charging' ? this.cruiseCharge : 0,
+      cruiseActive: this.cruise === 'on',
+      turnRate: Math.min(1, this.angVel.length() / 2),
+      rcs: Math.min(1, this.strafe.length() + Math.abs(this.angVel.z) / RATE.roll * 0.5),
+      atmoDensity: Math.min(1, atmo),
+    };
   }
 }
