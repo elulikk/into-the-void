@@ -191,6 +191,22 @@ Se cambia con una tecla de modo, con indicador en el HUD y sonido. Técnica: mod
 - **Sensación de estar adentro:** la cabeza se balancea con las fuerzas G, vibración por motor y turbulencia, mirada libre con el mouse (botón derecho), sonido amortiguado del exterior según la densidad del aire, respiración y crujidos del casco en la reentrada.
 - **Aterrizaje automático:** cerca de la superficie (en modo atmosférico o sobre cuerpos sin aire), una tecla busca un lugar plano cerca (por la pendiente del terreno), baja con desaceleración suave, despliega el tren de aterrizaje y apoya la nave alineada con el suelo. Otra tecla despega. Con indicador en el HUD (altura, velocidad vertical, inclinación del terreno) y aviso si el lugar es demasiado empinado.
 
+## Referencias visuales por planeta
+
+### Venus: superficie (referencia del usuario)
+![Venus: superficie de referencia](docs/referencias/venus-superficie.png)
+
+Así tiene que verse Venus debajo de las nubes. La imagen está basada en las panorámicas de las sondas Venera 13/14 coloreadas.
+- **Cielo:** amarillo-naranja parejo y opaco, sin Sol visible. Toda la luz es difusa y llega desde arriba, filtrada por las nubes (nada de cielo azul ni de disco solar).
+- **Luz:** muy pareja, casi sin sombras marcadas, bajo contraste. Todo queda teñido de amarillo-ocre, como al atardecer pero sin dirección.
+- **Bruma:** densa. La visibilidad cae en pocos km y el horizonte se funde con el cielo en el mismo tono amarillo. Las colinas lejanas son siluetas lavadas.
+- **Suelo:** **losas de basalto planas y fracturadas** en capas (placas que parecen baldosas rotas), con tierra y grava oscura gris-marrón entre ellas. Relieve suave de lomas bajas, nada de picos filosos.
+- **Detalle cercano:** piedras sueltas chicas y bordes de placas que asoman. Texturas de roca volcánica porosa.
+- **Sensación:** opresiva, caliente y densa (92 bar, 464 °C). Leve distorsión por el calor y sonido grave y apagado.
+- **Lava:** la versión dramatizada de B8 (ríos de lava) va en zonas volcánicas puntuales (Maat Mons), no en todo el planeta. La mayor parte se ve como esta referencia.
+
+Técnica: neblina de altura con el color del cielo, luz ambiente fuerte desde arriba + luz del Sol muy atenuada y difusa (sin sombras duras), receta de terreno "losas" (Voronoi plano con bordes fracturados y terrazas), rocas por instancias, y un tone mapping/grading cálido propio para Venus.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
