@@ -218,6 +218,27 @@ Imagen de referencia: ilustración de Science Photo Library, con derechos de aut
 
 Técnica: bloom y flare del Sol escalados con la distancia (Mercurio está a 0,39 UA), sombras proyectadas de alta calidad (es donde más se notan), ambiente casi nulo, estrellas visibles en la superficie (sin atenuar el cielo porque no hay atmósfera), rocas por instancias y receta de terreno con cráteres y escarpes.
 
+### Júpiter: un mundo de nubes y la Gran Mancha Roja (referencia del usuario)
+Imagen de referencia: fotograma de la serie *Cosmos* (FOX), con derechos de autor. Está solo en local, en `docs/referencias/privadas/jupiter-nubes.png`.
+- **Todo es nube:** no hay suelo. **Paredes de nubes volumétricas gigantes**, muros que suben kilómetros, cúmulos que se hinchan en primer plano y vórtices que se enroscan. Las formas tienen **estrías y líneas de flujo**, como capas de crema batida estiradas por el viento.
+- **Colores:** crema, ocre, caramelo y marrón cálido. Más arriba, blancos de amoníaco; más abajo, naranjas y marrones (hidrosulfuro de amonio). Dentro de la Gran Mancha Roja, rojo-naranja intenso.
+- **Cielo:** arriba de las nubes altas, casi negro con estrellas (la atmósfera superior es tenue). Al bajar, se cierra en bruma marrón y oscuridad.
+- **Luz:** el Sol está lejos (5,2 UA, 1/27 de la luz que llega a la Tierra), así que la luz es más tenue, cálida y de costado, y marca el relieve de las nubes con sombras suaves y largas.
+- **Escala:** brutal. Lo que parece una nube cercana mide decenas de km.
+
+**Meterse en la megatormenta (Gran Mancha Roja), con datos reales para que se sienta:**
+- Unos 16.000 km de ancho (más grande que la Tierra), anticiclón del hemisferio sur que gira en sentido antihorario en ~6 días, con vientos de ~430–680 km/h en el borde. Sube unos 8 km sobre las nubes de alrededor y tiene raíces de cientos de km (misión Juno).
+- **Experiencia:**
+  - Desde lejos, un ojo rojo que gira de verdad, animado.
+  - Al acercarte, muros en espiral que te rodean y el viento te arrastra en la dirección del giro (fuerza lateral sobre la nave).
+  - Turbulencia y vibración que crecen hacia el borde.
+  - **Relámpagos** en las capas profundas de agua, que iluminan las nubes desde adentro.
+  - Rugido del viento grave y continuo.
+  - Al bajar, todo se oscurece, sube la presión y el casco se calienta, hasta un límite donde el HUD obliga a salir.
+- Los **sensores** (parte D) sirven acá: la térmica muestra las capas calientes profundas y el radar los muros de la tormenta en la oscuridad.
+
+Técnica: nubes volumétricas en varias capas (amoníaco, NH₄SH, agua) con flujo animado por bandas y un vórtice paramétrico para la Gran Mancha Roja (campo de velocidad que deforma el ruido), relámpagos como luces puntuales breves dentro del volumen, niebla y oscurecimiento por profundidad, viento como fuerza sobre la nave en modo atmosférico, sonido de viento y truenos.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
