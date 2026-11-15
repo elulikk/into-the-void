@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistema Solar a Escala</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fg: #d9e6f2; --dim: #7f93a8; --accent: #6fd3ff; --warn: #ffb35c; --panel: rgba(8, 14, 22, 0.62);
+    --line: rgba(111, 211, 255, 0.25);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: var(--fg);
+    font: 12px/1.45 'JetBrains Mono', ui-monospace, monospace; }
+  #app canvas { display: block; }
+  #markers { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .marker { position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; white-space: nowrap;
+    will-change: transform; }
+  .marker i { position: absolute; left: -5px; top: -5px; width: 10px; height: 10px; border: 1.5px solid;
+    transform: rotate(45deg); opacity: 0.9; }
+  .marker .name { position: absolute; left: 10px; top: -9px; color: var(--fg); text-shadow: 0 0 4px #000; }
+  .marker .dist { position: absolute; left: 10px; top: 4px; color: var(--dim); font-size: 10px; text-shadow: 0 0 4px #000; }
+  .marker.moon .name { font-size: 11px; color: #b9c7d6; }
+  .marker.target i { width: 18px; height: 18px; left: -9px; top: -9px; border-color: var(--accent) !important;
+    box-shadow: 0 0 8px var(--accent); }
+  .marker.target .name { color: var(--accent); font-weight: 600; left: 14px; }
+  .marker.target .dist { left: 14px; }
+  body.locked .marker { pointer-events: none; }
+
+  #target-arrow { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none;
+    border-left: 16px solid var(--accent); border-top: 9px solid transparent; border-bottom: 9px solid transparent;
+    margin: -9px 0 0 -8px; filter: drop-shadow(0 0 4px var(--accent)); }
+  #prograde { position: fixed; left: 0; top: 0; width: 16px; height: 16px; margin: -8px 0 0 -8px; pointer-events: none;
+    border: 2px solid #9dff9d; border-radius: 50%; opacity: 0.8; }
+  #prograde::before, #prograde::after { content: ''; position: absolute; background: #9dff9d; }
+  #prograde::before { left: 6px; top: -7px; width: 2px; height: 6px; }
+  #prograde::after { left: -7px; top: 5px; width: 28px; height: 2px; clip-path: inset(0 9px); }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px; pointer-events: none; }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(217, 230, 242, 0.55); }
+  #crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; clip-path: inset(0 0 14px 0); }
+  #crosshair::after { left: 0; top: 10px; width: 22px; height: 2px; clip-path: inset(0 15px 0 0); }
+
+  .panel { position: fixed; background: var(--panel); border: 1px solid var(--line); padding: 10px 12px;
+    backdrop-filter: blur(4px); min-width: 230px; }
+  .panel h3 { margin: 0 0 6px; font-size: 10px; letter-spacing: 0.14em; color: var(--accent); font-weight: 600; }
+  .row { display: flex; justify-content: space-between; gap: 16px; }
+  .row span:first-child { color: var(--dim); }
+  #p-time { left: 16px; top: 16px; }
+  #p-nav { left: 16px; bottom: 16px; }
+  #p-target { right: 16px; top: 16px; }
+  #tg-name { font-size: 15px; color: var(--accent); margin-bottom: 4px; }
+  #tg-ap.on { color: #9dff9d; }
+  .bar { height: 6px; background: rgba(255, 255, 255, 0.08); margin-top: 6px; position: relative; }
+  #throttle-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+  #throttle-fill.reverse { background: var(--warn); }
+  #status { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); color: var(--fg);
+    text-shadow: 0 0 6px #000; text-align: center; max-width: 60vw; pointer-events: none; }
+  #hint { position: fixed; right: 16px; bottom: 16px; color: var(--dim); text-align: right; }
+  body.locked #hint .unlocked { display: none; }
+  body:not(.locked) #hint .locked { display: none; }
+
+  #help { position: fixed; inset: 0; display: none; place-items: center; background: rgba(0, 0, 0, 0.55); }
+  #help.show { display: grid; }
+  #help .panel { position: static; max-width: 640px; }
+  #help table { border-collapse: collapse; width: 100%; }
+  #help td { padding: 2px 10px 2px 0; vertical-align: top; }
+  #help td:first-child { color: var(--accent); white-space: nowrap; }
+  #help p { color: var(--dim); margin: 10px 0 0; }
+
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #000; transition: opacity 0.6s; }
+  #loading.done { opacity: 0; pointer-events: none; }
+  #loading .box { width: 320px; text-align: center; }
+  #loading .title { font-size: 16px; letter-spacing: 0.2em; color: var(--accent); margin-bottom: 14px; }
+  #loading .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); transition: width 0.2s; }
+  #loading .what { margin-top: 8px; color: var(--dim); }
+
+  @media (max-width: 720px) {
+    .panel { min-width: 0; font-size: 10px; padding: 6px 8px; }
+    #p-target { top: auto; bottom: 16px; }
+    #hint { display: none; }
+  }
+</style>
+<script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="markers"></div>
+  <div id="target-arrow" style="display:none"></div>
+  <div id="prograde" style="display:none"></div>
+  <div id="crosshair"></div>
+
+  <div class="panel" id="p-time">
+    <h3>TIEMPO</h3>
+    <div class="row"><span>Fecha</span><b id="t-date"></b></div>
+    <div class="row"><span>Aceleración</span><b id="t-warp"></b></div>
+  </div>
+
+  <div class="panel" id="p-nav">
+    <h3>NAVEGACIÓN</h3>
+    <div class="row"><span>Marco</span><b id="t-frame"></b></div>
+    <div class="row"><span>Más cercano</span><b id="t-near"></b></div>
+    <div class="row"><span>Distancia al Sol</span><b id="t-sun"></b></div>
+    <div class="row"><span>Luz solar tarda</span><b id="t-light"></b></div>
+    <div class="row"><span>Velocidad</span><b id="t-speed"></b></div>
+    <div class="row"><span>Límite supercrucero</span><b id="t-vmax"></b></div>
+    <div class="row"><span>Acelerador</span><b id="t-throttle"></b></div>
+    <div class="bar"><i id="throttle-fill"></i></div>
+  </div>
+
+  <div class="panel" id="p-target">
+    <h3>OBJETIVO</h3>
+    <div id="tg-name">—</div>
+    <div class="row"><span>Distancia</span><b id="tg-dist"></b></div>
+    <div class="row"><span>Radio</span><b id="tg-radius"></b></div>
+    <div class="row"><span>Llegada</span><b id="tg-eta"></b></div>
+    <div class="row"><span>Piloto auto.</span><b id="tg-ap"></b></div>
+  </div>
+
+  <div id="status"></div>
+  <div id="hint">
+    <div class="unlocked">Clic en la pantalla para pilotear · clic en un marcador para elegir objetivo</div>
+    <div class="locked">Esc para liberar el mouse · H ayuda</div>
+  </div>
+
+  <div id="help">
+    <div class="panel">
+      <h3>CONTROLES</h3>
+      <table>
+        <tr><td>Clic / Esc</td><td>Capturar / liberar el mouse (mouse = cabeceo y guiñada)</td></tr>
+        <tr><td>W / S</td><td>Subir / bajar acelerador (S por debajo de 0 = reversa)</td></tr>
+        <tr><td>A D · R F</td><td>Desplazamiento lateral · arriba/abajo</td></tr>
+        <tr><td>Q / E</td><td>Alabeo</td></tr>
+        <tr><td>Flechas</td><td>Rotar sin mouse</td></tr>
+        <tr><td>Shift</td><td>Turbo ×4</td></tr>
+        <tr><td>X</td><td>Frenar</td></tr>
+        <tr><td>Rueda</td><td>Factor del supercrucero</td></tr>
+        <tr><td>0 – 8</td><td>Objetivo: Sol, Mercurio … Neptuno</td></tr>
+        <tr><td>Tab / Shift+Tab</td><td>Objetivo siguiente / anterior</td></tr>
+        <tr><td>N</td><td>Siguiente luna del sistema del objetivo</td></tr>
+        <tr><td>G</td><td>Piloto automático al objetivo</td></tr>
+        <tr><td>, / .</td><td>Aceleración temporal (×1 … ×1.000.000)</td></tr>
+        <tr><td>P · Backspace</td><td>Pausar el tiempo · volver a la fecha actual</td></tr>
+        <tr><td>C · L · O</td><td>Cámara 1ª/3ª persona · etiquetas · órbitas</td></tr>
+        <tr><td>H</td><td>Mostrar / ocultar esta ayuda</td></tr>
+      </table>
+      <p>Todo está a escala real 1:1. El supercrucero limita la velocidad a ~0,75 × la altitud sobre el
+        cuerpo más cercano: cerca de un planeta vas lento, en el espacio vacío cruzás UAs en segundos.</p>
+    </div>
+  </div>
+
+  <div id="loading"><div class="box">
+    <div class="title">SISTEMA SOLAR</div>
+    <div class="bar"><i></i></div>
+    <div class="what">Cargando…</div>
+  </div></div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
