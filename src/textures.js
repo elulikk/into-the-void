@@ -59,8 +59,8 @@ const STYLES = {
     }
     const ice = smooth(1.12, 1.25, alat + (fbm(x * 4, y * 4, z * 4, 3, 5) - 0.5) * 0.3);
     c = mix(c, [240, 245, 250], ice);
-    const cl = fbm(x * 2.5 + 10, y * 5, z * 2.5, 6, 11);
-    return mix(c, [250, 250, 252], smooth(0.52, 0.72, cl) * 0.9);
+    // las nubes ya no se pintan acá: son volumétricas (src/clouds, con el mismo patrón de cobertura)
+    return c;
   },
   mars(x, y, z, lat) {
     const n = fbm(x * 2, y * 2, z * 2, 6, 21);
@@ -71,7 +71,7 @@ const STYLES = {
   },
   venus(x, y, z, lat) {
     const n = fbm(x * 1.5, y * 6 + lat, z * 1.5, 5, 31);
-    return mix([200, 160, 100], [245, 220, 165], n);
+    return mix([95, 70, 50], [150, 112, 80], n); // basalto: lo que se ve abajo de las nubes
   },
   mercury(x, y, z) {
     const n = fbm(x * 3, y * 3, z * 3, 6, 41);

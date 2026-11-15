@@ -15,8 +15,8 @@
 export const CLOUDS = {
   earth: {
     base: 1.0, top: 12.0, maxDist: 260,
-    sigma: 18, coverage: 'map', covBias: 0.1, covScale: 0.95, covVar: 0.5, type: 0.5,
-    profile: 0, shapeTile: 14, detailTile: 1.8, erosion: 0.4, warp: 0.0,
+    sigma: 18, coverage: 'map', covBias: -0.3, covScale: 1.0, covVar: 0.6, type: 0.5,
+    profile: 0, shapeTile: 52, detailTile: 5, erosion: 0.4, warp: 0.0,
     albedo: [0.98, 0.98, 0.98], absorb: [1, 1, 1],
     ambient: [0.07, 0.09, 0.13], ambBottom: 0.45,
     lightLen: 2.2, g: [0.82, -0.22, 0.28], bright: 2.6, powder: 0.6,
