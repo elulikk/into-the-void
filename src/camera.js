@@ -35,6 +35,9 @@ export class ChaseCamera {
       if (ev === 'cruise-on') this.addShake(0.9);
       if (ev === 'cruise-drop') this.addShake(0.7);
       if (ev === 'slam') this.addShake(0.5);
+      if (ev === 'reentry') this.addShake(1.4);
+      if (ev === 'interdiction') this.addShake(0.8);
+      if (ev === 'mode-change') this.addShake(0.25);
     }
 
     const third = ship.thirdPerson;
@@ -47,7 +50,7 @@ export class ChaseCamera {
       target = _v.set(
         -av.y * 7 + ship.strafe.x * 2,            // adelantarse hacia el lado del giro
         9 + av.x * 5 + ship.strafe.y * 1.5,
-        42 + ship.boost * 10 + (ship.cruise === 'on' ? 6 : 0),
+        42 + ship.boost * 10 + (ship.cruise === 'on' ? 6 : 0) + (ship.engineMode === 'atmo' ? -4 : 0),
       );
     } else {
       target = _v.set(0, 1.2, -5.5);
@@ -63,9 +66,20 @@ export class ChaseCamera {
     }
     this.world.copy(this.offset).applyQuaternion(this.quat).add(ship.world);
 
-    // temblor: carga del supercrucero, boost y eventos
+    // temblor: carga del supercrucero, boost, eventos y, en atmósfera, buffeting
+    // (reentrada, transónico cerca de Mach 1 y turbulencia que crece con la presión dinámica)
     const charging = ship.cruise === 'charging' ? ship.cruiseCharge : 0;
-    const sustained = charging * 0.5 + ship.boost * 0.12;
+    const mode = ship.engineMode || 'impulse';
+    let sustained = charging * 0.5 + ship.boost * (mode === 'atmo' ? 0.2 : 0.12) + (ship.reentry || 0) * 1.2;
+    if (mode === 'atmo') {
+      const env = ship.engineEnv;
+      const rho = env ? Math.min(1, env.rho01 || 0) : 0;
+      const m = ship.mach || 0;
+      const transonic = Math.exp(-((m - 1) * (m - 1)) / 0.006);
+      sustained += rho * (0.06 * Math.min(1, m) + 0.35 * transonic);
+    }
+    // spool del motor: un pequeño tirón mientras entra el modo nuevo
+    if (mode !== 'cruise') sustained += (1 - (ship.engineTransition ?? 1)) * 0.25;
     this.shake *= 1 - expK(2.5, dt);
     const s = Math.max(this.shake, sustained);
     if (s > 0.002) {
@@ -77,10 +91,13 @@ export class ChaseCamera {
         Math.sin(t * 29.9 + 2) * a * 0.7, 'YXZ')));
     }
 
-    // FOV dinámico
+    // FOV dinámico por modo: en atmósfera se abre con la velocidad real (cerca del suelo
+    // es lo que vende la velocidad); en impulso es sobrio; en crucero se estira más
     const speed01 = Math.min(1, ship.vel.length() / Math.max(1, ship.vmax));
-    const fovT = this.baseFov + speed01 * Math.max(0, ship.throttle) * 6 + ship.boost * 12 +
-      (ship.cruise === 'on' ? 8 * speed01 : 0) - charging * 4;
+    let fovT = this.baseFov + ship.boost * 12 - charging * 4;
+    if (mode === 'atmo') fovT += Math.min(1, ship.vel.length() / 900) * 10 - 2 + (ship.reentry || 0) * 6;
+    else if (mode === 'impulse') fovT += speed01 * Math.max(0, ship.throttle) * 5;
+    else fovT += speed01 * Math.max(0, ship.throttle) * 6 + (ship.cruise === 'on' ? 10 * speed01 : 0);
     this.fov += (fovT - this.fov) * expK(3, dt);
   }
 }

@@ -15,6 +15,7 @@
  *   LT (L2) .............. throttle -  (brake / reverse)
  *   A (Cross) ............ boost (held)
  *   L3 (left stick click)  pressed.cruise (edge) — supercruise
+ *   Back / View (Share) .. pressed.engineMode (edge) — cycle engine mode (atmo/impulse/cruise)
  *   B (Circle) ........... pressed.brake        (edge)
  *   X (Square) ........... pressed.autopilot     (edge)
  *   Y (Triangle) ......... pressed.camera        (edge)
@@ -50,6 +51,7 @@ const EDGE_MAP = {
   labels: BTN.UP,
   help: BTN.DOWN,
   cruise: BTN.L3,
+  engineMode: BTN.BACK,
 };
 
 function curve(v) {
