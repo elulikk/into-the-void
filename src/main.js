@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { SolarSystem } from './system.js';
 import { Ship } from './ship.js';
 import { ChaseCamera } from './camera.js';
@@ -37,8 +38,22 @@ const mainPass = new RenderPass(scene, camera);
 mainPass.clear = false;
 mainPass.clearDepth = true;
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.7, 0.55, 2.2);
+// Saneado: un solo píxel NaN/Inf se convierte en un cuadrado negro al pasar por el bloom.
+// Los reemplaza por negro y limita el brillo máximo antes del bloom.
+const sanitize = new ShaderPass({
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      bool bad = !(c.r < 1e4 && c.r > -1e4) || !(c.g < 1e4 && c.g > -1e4) || !(c.b < 1e4 && c.b > -1e4);
+      gl_FragColor = bad ? vec4(0.0, 0.0, 0.0, 1.0) : vec4(clamp(c.rgb, 0.0, 64.0), c.a);
+    }`,
+});
 composer.addPass(bgPass);
 composer.addPass(mainPass);
+composer.addPass(sanitize);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 

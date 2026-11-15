@@ -33,7 +33,8 @@ const atmoFragment = /* glsl */`
   varying vec3 vN; varying vec3 vV;
   void main() {
     #include <logdepthbuf_fragment>
-    float rim = 1.0 - max(dot(vN, vV), 0.0);
+    // clamp: por redondeo dot() puede pasar de 1 y pow() de un negativo da NaN
+    float rim = clamp(1.0 - dot(normalize(vN), normalize(vV)), 0.0, 1.0);
     float lit = smoothstep(-0.35, 0.4, dot(vN, sunDir));
     gl_FragColor = vec4(color * 1.3, pow(rim, 2.5) * lit);
   }`;
