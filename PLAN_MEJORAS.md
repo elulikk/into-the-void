@@ -256,6 +256,18 @@ Dos imágenes de referencia, de arte digital sin fuente conocida. Están solo en
 
 Técnica: textura radial de alta resolución (ya existe una base en `ringTexture`) más **instancias de partículas en la vecindad de la cámara** (campo procedural determinista por celda, como el polvo espacial pero con rocas 3D, generadas y recicladas alrededor de la nave), sombras de rocas sobre el plano, motion blur por velocidad, iluminación de dispersión hacia adelante (los anillos brillan a contraluz), y sonido de impactos de hielo al cruzar.
 
+### Tierra: realista como un simulador de vuelo (pedido del usuario)
+Objetivo: que al entrar en la atmósfera de la Tierra se sienta como Microsoft Flight Simulator. **Fuente elegida: solo datos abiertos y gratuitos**, descargados por zonas mientras volás (requiere internet; con caché local).
+- **Relieve real:** modelos de elevación globales (SRTM / Copernicus DEM, ~30 m) en mosaicos que se piden según el nivel de LOD del cubo-esfera. Más detalle procedural fino encima.
+- **Imagen satelital real:** mosaicos sin nubes (Sentinel-2 / NASA Blue Marble / GIBS) sobre el terreno. Desde el espacio, el mosaico global; al bajar, cada vez más resolución (hasta ~10 m por píxel).
+- **Ciudades:** huellas de edificios de **OpenStreetMap** levantadas en 3D con su altura o número de pisos (o una estimación) y fachadas procedurales, con ventanas que se encienden de noche. Rutas, ríos y lagos de OSM. Monumentos famosos con modelos hechos a mano (B9).
+- **Vegetación y suelo:** árboles por instancias según la cobertura de suelo (bosques, selva, campos, desierto, nieve), pasto y cultivos en el sombreado.
+- **Agua:** océano con olas, espuma en la costa, reflejos del cielo y del Sol, color según la profundidad.
+- **Cielo y luz:** atmósfera desde adentro (B4), nubes volumétricas (ya hechas), hora real del día y sombras de montañas y nubes.
+- **Sensación de avión:** modo de motor atmosférico, sonido del viento, turbulencia y referencias de altura reales en el HUD (altímetro, nivel del mar).
+- **Límites honestos:** a ras de calle no va a tener el escaneo fotogramétrico de Flight Simulator; desde altura de avión puede verse muy parecido. Licencias: Sentinel-2 cloudless 2016 (CC BY 4.0, con atribución), datos NASA (dominio público), OSM (ODbL, con atribución "© OpenStreetMap"). Antes de integrar cada fuente se confirma su licencia y se agrega la atribución en pantalla y en el README.
+- **Técnica:** un sistema de streaming de mosaicos con prioridad por distancia, caché en IndexedDB, reproyección de los mosaicos al cubo-esfera y Web Workers para decodificar. Es la evolución de B9 para la Tierra; para la Luna y Marte alcanza con los mapas globales (LOLA, MOLA, HiRISE en lugares puntuales).
+
 ## PARTE H: aprender jugando
 - **Fichas de cada cuerpo y lugar:** al apuntar o acercarte, datos reales breves (tamaño, gravedad, temperatura, atmósfera, día y año, quién lo descubrió o visitó y qué misiones fueron) y una curiosidad. Se abren con una tecla, sin tapar el vuelo.
 - **Marca de "licencia creativa":** cuando lo que ves está exagerado o inventado (ríos de lava en Venus, colores de los anillos, densidad de rocas), un ícono discreto en la ficha explica qué es real y qué no. Ejemplo: "Los anillos son 99 % hielo de agua; acá se ven más rocosos y cálidos para que luzcan".
@@ -293,7 +305,7 @@ Técnica: textura radial de alta resolución (ya existe una base en `ringTexture
 1. **Menús, opciones y antialias** (I): es la base donde se van a colgar las opciones de todo lo demás.
 2. **Sensores** (D): faros y bengalas, visión nocturna, térmica, radar/LIDAR.
 3. **Cabina y aterrizaje automático** (G).
-4. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos.
+4. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos. La Tierra con streaming de mosaicos abiertos estilo simulador de vuelo (relieve, imagen satelital, edificios de OSM).
 5. **Etiquetas de lugares** (E) + **fichas para aprender** (H).
 6. **Detalle 3D y visual** (F): Tierra, Luna, Marte.
 7. **Clima y sonido ambiente** (F).
