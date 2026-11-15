@@ -2,7 +2,7 @@
 
 ## Decisiones tomadas
 - **Vuelo muy arcade** (tipo Freelancer/No Man's Sky): giros rápidos y con respuesta, sin deriva lateral, alabeo automático y cámara con resorte. El Flight Assist apagado (A2) queda fuera; el empuje mantiene algo de rampa para que haya "peso".
-- **Se empieza por la fase 1 (vuelo).** Fases 1 y 2 terminadas y en `main`.
+- **Se empieza por la fase 1 (vuelo).** Fases 1 y 2 terminadas y en `main`. **Fase 3 terminada** en la rama `fase3-terreno` (pendiente de merge).
 - **Cada fase se hace en una sesión nueva** (para no acumular contexto).
 - **Planetas realistas fieles**: geografía y colores parecidos a los reales, generados proceduralmente.
 - **Extras incluidos**: sonido procedural, gamepad, aterrizaje (va en la fase 5, una vez que haya terreno real). Sin migrar a Vite: se siguen usando módulos ES y `serve.py`.
@@ -131,7 +131,7 @@ Técnica: nubes volumétricas por raymarching (B5), emisivos con bloom (lava), p
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
 2. **Post-proceso + atmósfera por scattering vista desde el espacio** (B4 parcial, B7 bloom): el salto visual más grande por el esfuerzo.
-3. **Terreno LOD + colisión real** (B1) con una receta simple, probado en la Luna.
+3. ✅ **Terreno LOD + colisión real** (B1, base de B2) — hecho: ver "Estado de la fase 3" abajo.
 4. **Recetas por planeta + shading de superficie + océano** (B2, B3).
 5. **Atmósfera desde adentro, nubes, aterrizaje y descensos cinematográficos** (B4 completo, B5, B8): Venus primero.
 6. **Gigantes gaseosos animados, anillos con sombras, descensos a Júpiter/Saturno, plumas de Ío, pulido** (B6, B8).
@@ -139,3 +139,16 @@ Técnica: nubes volumétricas por raymarching (B5), emisivos con bloom (lava), p
 ## Cambios técnicos de base
 - Tal vez convenga pasar a **Vite** (dev server + bundling de workers y GLSL en archivos `.glsl`). Si no, se pueden seguir usando módulos ES nativos con workers `type: "module"`.
 - Nuevos módulos: `flight.js` (física de vuelo), `camera.js` (cámara de persecución), `fx/` (polvo, warp, post), `planet/` (quadtree, chunk worker, recetas, shaders), `atmosphere/`.
+
+## Estado de la fase 3 (terreno LOD) — hecha
+Diseño final (todo en `src/planet/`, sin THREE salvo `terrain.js`):
+- `noise.js` (ruido de valor + Perlin + fbm/ridged con rango de octavas), `styles.js` (colores por cuerpo, compartido con `textures.js`), `faces.js` (cubo esferizado), `recipes.js`, `chunkWorker.js`, `terrain.js`.
+- **Recetas** `getRecipe(id, R)` → `{ heightAt(sx,sy,sz,minWl), minH, maxH, emissive() }`. Las usan el worker y el hilo principal (colisión/altitud), así coinciden. La dirección va en "espacio de estilo" (`styleDir`: (-dx, dy, dz)) para que el relieve coincida con la textura. Luna, Tierra, Marte, Mercurio y receta genérica para las demás lunas (`GENERIC`). Venus, Titán, gigantes y Sol: sin terreno.
+- **Chunks** de 33×33 + faldones + anillo extra para normales (sin grietas), vértices en float32 relativos al centro; cada malla se ubica con `b.rel + qBody·centro` en doubles. Pool de 3–6 workers.
+- **Quadtree**: se divide si distancia < 4 × lado; hijos sólo cuando los 4 están listos; culling por horizonte (radio ocultador adaptativo) y frustum; poda por antigüedad; cola por nivel y distancia. Se enciende a < 6R y apaga a > 7R.
+- **Colisión**: `system.surfaceRadius`, `nearestSurface` y `ship.js` (10 m de margen); la cámara de persecución no entra al suelo. **Co-rotación** de la nave < 3R (`ship.coRotate`).
+- Material con `onBeforeCompile`: textura del cuerpo por UV equirectangular sin costura (Tarini + `textureGrad`), × sombreado por pendiente/ruido, canal emisivo para lava.
+
+Medido (1280×720, panel del navegador): ~3.5 ms/cuadro a 50 m de la Luna con ~680 chunks / 1.6 M tris; ~4.8 ms con 987 chunks / 2.3 M tris dentro de un cráter profundo. Un chunk tarda 4–12 ms en el worker. Co-rotación a ×1000: 0° de deslizamiento (8,2° sin ella). Choque a 108 km/s: nunca bajó de 10 m.
+
+**Queda para la fase 4:** shading por bioma (altura/latitud/pendiente/humedad) y detalle triplanar en el fragment shader; océano real (hoy plano a 0 m, con el color de la textura); las nubes de la textura de la Tierra aparecen pintadas en el suelo (hay que sacarlas de la textura del terreno y hacerlas capa propia); recetas específicas (Olympus Mons, Valles Marineris, calderas y lava emisiva de Ío, grietas de Europa, Fobos/Deimos no esféricos); relieve de Venus/Titán (fase 5). Ajustes posibles: `K_SPLIT`, tamaño del pool, límites de caché en `terrain.js`.
