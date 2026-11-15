@@ -222,7 +222,7 @@ export class Instruments {
     const near = this.nearBody(t);
     if (near) this.pitchLadder(t, { spanX: Math.min(170, w * 0.12), clipH: h * 0.62 });
     this.headingTape(t, extra, { y: 132, width: Math.min(520, w * 0.42), ppd: Math.min(5, w / 300) });
-    const tx = Math.max(220, w * 0.25);
+    const tx = Math.max(130, Math.min(w * 0.25, w / 2 - (w < 1100 ? 210 : 285) - 130));
     const th = Math.min(420, h * 0.5);
     const kmh = t.flight.speed * 3.6;
     this.tape(w / 2 - tx, kmh, {

@@ -15,7 +15,7 @@ const Y = new THREE.Vector3(0, 1, 0);
 // Casco / escudo térmico (modelo concentrado por unidad de área)
 export const HULL = {
   warn: 1100, crit: 1500,   // K: ámbar y rojo (escudo cerámico tipo transbordador ~1.650 K)
-  heatCap: 2.5e4,           // J/(m²·K)
+  heatCap: 1.2e4,           // J/(m²·K)
   noseR: 2,                 // radio de la nariz para Sutton–Graves (m)
   absorb: 0.6, emis: 0.85,
 };
@@ -197,7 +197,7 @@ export class Telemetry {
     else if (o.pe < 0) o.state = 'suborbital · cayendo';
     else if (o.pe < atmTop) o.state = 'periapsis en la atmósfera';
     else o.state = 'en órbita';
-    o.escaping = eps >= 0 && frame.id !== 'sun';
+    o.escaping = eps >= 0 && o.vr >= 0 && frame.id !== 'sun';
 
     // ---------- nave: temperatura del casco
     const c = t.craft;

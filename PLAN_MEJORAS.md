@@ -122,3 +122,9 @@ Funciones combinables: fbm, ridged multifractal (cordilleras), domain warping, c
 ## Cambios técnicos de base
 - Tal vez convenga pasar a **Vite** (dev server + bundling de workers y GLSL en archivos `.glsl`). Si no, se pueden seguir usando módulos ES nativos con workers `type: "module"`.
 - Nuevos módulos: `flight.js` (física de vuelo), `camera.js` (cámara de persecución), `fx/` (polvo, warp, post), `planet/` (quadtree, chunk worker, recetas, shaders), `atmosphere/`.
+
+
+## HUD de instrumentos
+- Tecla U: sci-fi / aviónica / minimalista (se guarda en localStorage).
+- `src/physics/` (datos y atmósferas por cuerpo), `src/hud/` (telemetría, instrumentos en canvas, alertas).
+- Pendiente: velocidad relativa al aire (hoy ignora la rotación del planeta) y terreno real (usa `ship.nearest.alt`).
