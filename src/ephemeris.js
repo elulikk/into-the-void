@@ -31,7 +31,7 @@ export function julianDate(ms) {
   return ms / 86400000 + 2440587.5;
 }
 
-function solveKepler(M, e) {
+export function solveKepler(M, e) {
   let E = M + e * Math.sin(M);
   for (let i = 0; i < 8; i++) {
     const dE = (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));

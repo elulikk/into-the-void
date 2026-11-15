@@ -5,13 +5,20 @@
 import * as THREE from 'three';
 import { BODIES, ATMOSPHERES } from './bodies.js';
 import { createAtmosphere, updateAtmosphere } from './atmosphere.js';
-import { planetElements, planetPosition, moonElements, orbitalPosition, positionFromE, poleToEcliptic } from './ephemeris.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { planetElements, planetPosition, moonElements, orbitalPosition, positionFromE, solveKepler, poleToEcliptic } from './ephemeris.js';
 import { getRecipe } from './planet/recipes.js';
 import { proceduralTexture, tryRealTexture, ringTexture, glowTexture } from './textures.js';
 
 const DEG = Math.PI / 180;
 const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion();
 const KM = 1000;
+// Muestreo de las órbitas: vértices por línea y offset de anomalía excéntrica (rad) en función
+// de s ∈ [-1, 1]: casi lineal en 0 (muy denso) y cada vez más espaciado hacia la otra punta.
+const ORBIT_NV = 1201;
+const ORBIT_D = s => Math.PI * Math.sign(s) * (0.01 * Math.abs(s) + 0.99 * s ** 4);
 const EARTH_MOON_MASS_RATIO = 0.0121505856; // m_luna / (m_tierra + m_luna)
 
 // eclíptica (x, y, z-norte) → three.js (x, y-arriba, z)
@@ -77,6 +84,9 @@ export class SolarSystem {
       b.spin = 0; b.dSpin = 0;
     }
     this.lastOrbitJd = null;
+    this.jd = 0;
+    this.tmpV = new THREE.Vector3();
+    this.orbitRes = new THREE.Vector2(1, 1);
   }
 
   async build(onProgress) {
@@ -173,26 +183,59 @@ export class SolarSystem {
     return true;
   }
 
-  // Líneas de órbita (se regeneran si la fecha cambia mucho)
+  // Elementos keplerianos del cuerpo en la fecha: { a, e, I, Omega, omega, M }
+  orbitElements(b, jd) {
+    if (b.parent === 'sun') return planetElements(b.id === 'earth' ? 'emb' : b.id, jd);
+    if (b.orbit === 'luna') return moonElements(jd);
+    const o = b.orbit;
+    const M = ((o.M0 + 360 * (jd - 2451545.0) / o.P) % 360) * DEG;
+    return { a: o.a * KM, e: o.e, I: o.i * DEG, Omega: 0, omega: 0, M };
+  }
+
+  // Material de las órbitas: línea gruesa en píxeles, con bordes suaves (no hay MSAA),
+  // alfa por vértice (cola de cometa) y profundidad logarítmica (LineMaterial ya la trae).
+  orbitMaterial(color) {
+    const mat = new LineMaterial({ color, linewidth: 2, transparent: true, opacity: 0.6, depthWrite: false });
+    mat.uniforms.resolution.value = this.orbitRes; // compartido: se actualiza una vez por cuadro
+    mat.onBeforeCompile = sh => {
+      sh.vertexShader = sh.vertexShader
+        .replace('attribute vec3 instanceEnd;', 'attribute vec3 instanceEnd;\nattribute vec2 instanceAlpha;\nvarying float vAlpha;')
+        .replace('void main() {', 'void main() {\n vAlpha = ( position.y < 0.5 ) ? instanceAlpha.x : instanceAlpha.y;');
+      sh.fragmentShader = sh.fragmentShader
+        .replace('varying float vLineDistance;', 'varying float vLineDistance;\nvarying float vAlpha;')
+        .replace('float alpha = opacity;', `
+          // sin tapas (los segmentos se pegan sin superponerse) y borde suave de ~1 px a lo ancho
+          if ( abs( vUv.y ) > 1.0 ) discard;
+          float aa = fwidth( vUv.x );
+          float alpha = opacity * vAlpha * clamp( ( 1.0 - abs( vUv.x ) ) / ( 1.5 * aa ), 0.0, 1.0 );`);
+    };
+    return mat;
+  }
+
+  // Líneas de órbita: una por cuerpo, con ORBIT_NV vértices que se regeneran alrededor de la
+  // posición actual del cuerpo (ver updateOrbitLine). Se crean de nuevo si la fecha cambia mucho.
   buildOrbits(jd) {
+    for (const l of this.orbitGroup.children) { l.geometry.dispose(); l.material.dispose(); }
     this.orbitGroup.clear();
+    const NV = ORBIT_NV, h = (NV - 1) / 2;
+    // Alfa por vértice (fijo, depende sólo del índice): la cola es larga y brillante detrás
+    // del cuerpo (E menor: ya lo recorrió) y se apaga rápido por delante. Piso tenue en el resto.
+    const alpha = new Float32Array((NV - 1) * 2);
+    const va = k => {
+      const s = (k - h) / h, t = Math.abs(ORBIT_D(s)) / Math.PI;
+      const f = s < 0 ? Math.pow(1 - t, 2.2) : Math.pow(1 - t, 14);
+      return 0.05 + 0.95 * f;
+    };
+    for (let k = 0; k < NV - 1; k++) { alpha[2 * k] = va(k); alpha[2 * k + 1] = va(k + 1); }
     for (const b of this.bodies) {
       if (!b.parent) continue;
-      const pts = [];
-      const tmp = [0, 0, 0];
-      const N = 512;
-      let el, local = false;
-      if (b.parent === 'sun') el = planetElements(b.id === 'earth' ? 'emb' : b.id, jd);
-      else if (b.orbit === 'luna') el = moonElements(jd);
-      else { const o = b.orbit; el = { a: o.a * KM, e: o.e, I: o.i * DEG, Omega: 0, omega: 0 }; local = true; }
-      for (let k = 0; k <= N; k++) {
-        positionFromE(el.a, el.e, el.I, el.Omega, el.omega, (k / N) * Math.PI * 2, tmp);
-        pts.push(eclToThree(tmp));
-      }
-      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const geo = new LineSegmentsGeometry();
+      geo.setPositions(new Float32Array((NV - 1) * 6));
+      geo.setAttribute('instanceAlpha', new THREE.InstancedBufferAttribute(alpha, 2));
       const col = new THREE.Color(b.color).multiplyScalar(0.55);
-      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.6 }));
-      line.userData = { body: b, local };
+      const line = new LineSegments2(geo, this.orbitMaterial(col));
+      const local = !(b.parent === 'sun' || b.orbit === 'luna');
+      line.userData = { body: b, local, origin: new THREE.Vector3(), built: false };
       if (local) line.quaternion.copy(b.parentBody.tilt);
       line.frustumCulled = false;
       this.orbitGroup.add(line);
@@ -200,7 +243,42 @@ export class SolarSystem {
     this.lastOrbitJd = jd;
   }
 
+  // Regenera los vértices de la órbita con el cuerpo en el vértice central. Se muestrea por
+  // anomalía excéntrica con densidad concentrada cerca del cuerpo (ORBIT_D), y las
+  // coordenadas son RELATIVAS al cuerpo (restadas en doubles: floats chicos cerca de él).
+  updateOrbitLine(line) {
+    const b = line.userData.body;
+    const { a, e, I, Omega, omega, M } = this.orbitElements(b, this.jd);
+    const E0 = solveKepler(M, e);
+    const bq = a * Math.sqrt(1 - e * e);
+    const cw = Math.cos(omega), sw = Math.sin(omega), cO = Math.cos(Omega), sO = Math.sin(Omega);
+    const cI = Math.cos(I), sI = Math.sin(I);
+    const m11 = cw * cO - sw * sO * cI, m12 = -sw * cO - cw * sO * cI;
+    const m21 = cw * sO + sw * cO * cI, m22 = -sw * sO + cw * cO * cI;
+    const m31 = sw * sI, m32 = cw * sI;
+    // punto del cuerpo (eclíptica → three: (x, z, -y))
+    const pe = (E, out) => {
+      const xp = a * (Math.cos(E) - e), yp = bq * Math.sin(E);
+      out[0] = m11 * xp + m12 * yp; out[1] = m31 * xp + m32 * yp; out[2] = -(m21 * xp + m22 * yp);
+    };
+    const c = [0, 0, 0], q = [0, 0, 0];
+    pe(E0, c);
+    const NV = ORBIT_NV, h = (NV - 1) / 2;
+    const arr = line.geometry.attributes.instanceStart.data.array;
+    for (let k = 0; k < NV; k++) {
+      pe(E0 + ORBIT_D((k - h) / h), q);
+      const x = q[0] - c[0], y = q[1] - c[1], z = q[2] - c[2];
+      if (k > 0) { const o = (k - 1) * 6 + 3; arr[o] = x; arr[o + 1] = y; arr[o + 2] = z; }
+      if (k < NV - 1) { const o = k * 6; arr[o] = x; arr[o + 1] = y; arr[o + 2] = z; }
+    }
+    line.geometry.attributes.instanceStart.data.needsUpdate = true;
+    // la Tierra orbita alrededor del baricentro: el vértice central se ancla al cuerpo real
+    line.userData.origin.subVectors(b.pos, b.parentBody.pos);
+    line.userData.built = true;
+  }
+
   update(jd) {
+    this.jd = jd;
     const tmp = [0, 0, 0];
     const v = new THREE.Vector3();
     this.byId.sun.pos.set(0, 0, 0);
@@ -268,21 +346,33 @@ export class SolarSystem {
     sun.mesh.material.uniforms.uIntensity.value = THREE.MathUtils.lerp(7, 1.6, near);
     this.sunGlow.material.opacity = THREE.MathUtils.lerp(1, 0.25, near);
 
+    // Órbitas: resolución del framebuffer (la línea mide px reales) y ancho en px
+    this.renderer.getDrawingBufferSize(this.orbitRes);
+    const lw = 2 * this.renderer.getPixelRatio();
     for (const line of this.orbitGroup.children) {
       const b = line.userData.body;
       const center = b.parentBody;
-      line.position.subVectors(center.pos, camPos);
       const distToCenter = shipPos.distanceTo(center.pos);
       let op;
       if (center.id === 'sun') {
         // se atenúa al estar dentro de la esfera de influencia del propio planeta
         const near = shipPos.distanceTo(b.pos) / b.soiM;
-        op = 0.55 * Math.min(1, Math.max(0, (near - 0.3) / 2));
+        op = 0.8 * Math.min(1, Math.max(0, (near - 0.3) / 2));
       } else {
-        op = 0.6 * Math.min(1, Math.max(0, 1.5 - distToCenter / (center.soiM * 2)));
+        op = 0.85 * Math.min(1, Math.max(0, 1.5 - distToCenter / (center.soiM * 2)));
       }
       line.material.opacity = op;
+      line.material.linewidth = lw;
       line.visible = op > 0.01;
+      if (!line.visible) { line.userData.built = false; continue; }
+      // regenerar sólo si el cuerpo se corrió de su vértice más de ~2 px (o ~1/50 de su radio)
+      const u = line.userData;
+      const rel = this.tmpV.subVectors(b.pos, center.pos);
+      if (!u.built || rel.distanceTo(u.origin) > Math.max(0.002 * b.rel.length(), 0.02 * b.R)) {
+        this.updateOrbitLine(line);
+      }
+      // centro (móvil, p. ej. la Tierra para la Luna) + origen de la línea, relativo a la cámara
+      line.position.subVectors(center.pos, camPos).add(u.origin);
     }
   }
 
