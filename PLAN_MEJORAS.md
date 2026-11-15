@@ -185,6 +185,12 @@ Se cambia con una tecla de modo, con indicador en el HUD y sonido. Técnica: mod
 - **Sonido ambiente:** viento según densidad (Marte fino y apagado, como en las grabaciones de Perseverance), truenos, lluvia, oleaje, silencio en la Luna, Doppler de la nave, sonidos de interfaz.
 - **Música (más adelante):** sistema adaptativo por capas (exploración, aproximación, descenso); dejar ganchos desde ahora (bus de audio, ducking).
 
+## PARTE G: cabina y aterrizaje
+- **Vista de cabina real:** interior 3D de la cabina con su propio FOV (más abierto, ~80–90°, y ajustable), marco del vidrio, reflejos sutiles en el cristal, polvo o gotas al atravesar nubes y lluvia.
+- **Controles en 3D:** palanca y acelerador que se mueven con tu input, pantallas MFD con el HUD (radar, mapa, sensores, motores), luces de alerta reales en el tablero.
+- **Sensación de estar adentro:** la cabeza se balancea con las fuerzas G, vibración por motor y turbulencia, mirada libre con el mouse (botón derecho), sonido amortiguado del exterior según la densidad del aire, respiración y crujidos del casco en la reentrada.
+- **Aterrizaje automático:** cerca de la superficie (en modo atmosférico o sobre cuerpos sin aire), una tecla busca un lugar plano cerca (por la pendiente del terreno), baja con desaceleración suave, despliega el tren de aterrizaje y apoya la nave alineada con el suelo. Otra tecla despega. Con indicador en el HUD (altura, velocidad vertical, inclinación del terreno) y aviso si el lugar es demasiado empinado.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
@@ -198,11 +204,12 @@ Se cambia con una tecla de modo, con indicador en el HUD y sonido. Técnica: mod
 
 ### Orden acordado para lo que sigue (una sesión por vez, en Sonnet)
 1. **Sensores** (D): faros y bengalas, visión nocturna, térmica, radar/LIDAR.
-2. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos.
-3. **Etiquetas de lugares** (E).
-4. **Detalle 3D y visual** (F): Tierra, Luna, Marte.
-5. **Clima y sonido ambiente** (F).
-6. **Mapa holográfico** (C1) y, al final, **música**.
+2. **Cabina y aterrizaje automático** (G).
+3. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos.
+4. **Etiquetas de lugares** (E).
+5. **Detalle 3D y visual** (F): Tierra, Luna, Marte.
+6. **Clima y sonido ambiente** (F).
+7. **Mapa holográfico** (C1) y, al final, **música**.
 
 ## Cambios técnicos de base
 - Tal vez convenga pasar a **Vite** (dev server + bundling de workers y GLSL en archivos `.glsl`). Si no, se pueden seguir usando módulos ES nativos con workers `type: "module"`.
