@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { AU } from './ephemeris.js';
 import { C } from './ship.js';
 
+function frameSkip(h) { h._f = ((h._f ?? 0) + 1) % 15; return h._f === 0; }
+
 export function fmtDist(m) {
   const a = Math.abs(m);
   if (a < 1000) return `${a.toFixed(0)} m`;
@@ -21,6 +23,35 @@ export function fmtTime(s) {
   if (s < 3600) return `${Math.floor(s / 60)} min ${Math.floor(s % 60)} s`;
   if (s < 86400) return `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min`;
   return `${(s / 86400).toFixed(1)} días`;
+}
+
+// Equivalencias para el velocímetro (km/h)
+const REFS = [
+  { kmh: 5, name: 'caminando' },
+  { kmh: 120, name: 'un auto en la ruta' },
+  { kmh: 900, name: 'un avión de línea' },
+  { kmh: 3600, name: 'una bala de fusil' },
+  { kmh: 27600, name: 'la Estación Espacial' },
+  { kmh: 40320, name: 'escape de la Tierra' },
+  { kmh: 107000, name: 'la Tierra alrededor del Sol' },
+  { kmh: 692000, name: 'la sonda Parker' },
+  { kmh: 828000, name: 'el Sol en la galaxia' },
+];
+const C_KMH = 299792.458 * 3600;
+const nf = (v, d = 0) => v.toLocaleString('es-AR', { maximumFractionDigits: d });
+const fmtX = x => (x >= 100 ? nf(x) : x >= 10 ? nf(x, 1) : nf(x, 2));
+
+export function speedEquivalences(kmh) {
+  const parts = [];
+  if (kmh < 1) return '';
+  if (kmh >= 60) parts.push(`Mach <b>${fmtX(kmh / 1235)}</b>`);
+  // la referencia más grande que estás superando (o la primera, si vas más lento)
+  let ref = REFS[0];
+  for (const r of REFS) if (kmh >= r.kmh) ref = r;
+  parts.push(`<b>${fmtX(kmh / ref.kmh)}×</b> ${ref.name}`);
+  const c = kmh / C_KMH;
+  if (c >= 1e-4) parts.push(c >= 1 ? `<b>${fmtX(c)}×</b> la luz` : `<b>${nf(c * 100, c < 0.01 ? 3 : 1)} %</b> de la luz`);
+  return parts.join(' · ');
 }
 
 export class HUD {
@@ -135,6 +166,14 @@ export class HUD {
     }
     const vig = charging ? ship.cruiseCharge * 0.8 : ship.cruise === 'on' ? 0.35 * Math.min(1, spd / Math.max(1, ship.vmax)) : 0;
     this.vignette.style.opacity = vig.toFixed(3);
+
+    // velocímetro grande en km/h
+    const kmh = spd * 3.6;
+    if (Math.abs(kmh - (this._lastKmh ?? -1)) >= Math.max(1, kmh * 0.002) || frameSkip(this)) {
+      this._lastKmh = kmh;
+      this.el('spd-kmh').innerHTML = `${nf(Math.round(kmh))}<small>km/h</small>`;
+      this.el('spd-eq').innerHTML = speedEquivalences(kmh);
+    }
 
     // paneles
     const near = ship.nearest;

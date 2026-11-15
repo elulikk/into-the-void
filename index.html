@@ -73,6 +73,14 @@
   .bar { height: 6px; background: rgba(255, 255, 255, 0.08); margin-top: 6px; position: relative; }
   #throttle-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
   #throttle-fill.reverse { background: var(--warn); }
+  #speedo { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); text-align: center; pointer-events: none;
+    text-shadow: 0 0 8px #000; max-width: calc(100vw - 560px); }
+  #spd-eq { color: var(--dim); font-size: 11px; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #spd-eq b { color: var(--fg); font-weight: 600; }
+  #spd-kmh { font-size: 34px; font-weight: 600; color: var(--accent); line-height: 1.1; letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #spd-kmh small { font-size: 14px; color: var(--dim); font-weight: 400; margin-left: 6px; }
+  @media (max-width: 1100px) { #speedo { top: auto; bottom: 92px; max-width: 90vw; } #spd-kmh { font-size: 26px; } }
   #status { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); color: var(--fg);
     text-shadow: 0 0 6px #000; text-align: center; max-width: 60vw; pointer-events: none; }
   #hint { position: fixed; right: 16px; bottom: 16px; color: var(--dim); text-align: right; }
@@ -147,6 +155,7 @@
     <div class="row"><span>Piloto auto.</span><b id="tg-ap"></b></div>
   </div>
 
+  <div id="speedo"><div id="spd-eq"></div><div id="spd-kmh">0<small>km/h</small></div></div>
   <div id="status"></div>
   <div id="hint">
     <div class="unlocked">Clic en la pantalla para pilotear · clic en un marcador para elegir objetivo</div>
