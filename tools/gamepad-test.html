@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gamepad test</title>
+<style>
+  body { background:#0b0e14; color:#d8dee9; font:14px/1.4 system-ui,sans-serif; margin:0; padding:20px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  #status { margin-bottom:16px; color:#e5c07b; }
+  #status.ok { color:#98c379; }
+  .row { display:flex; align-items:center; gap:10px; margin:5px 0; max-width:560px; }
+  .row label { width:90px; }
+  .bar { position:relative; flex:1; height:14px; background:#1c2230; border-radius:3px; }
+  .bar i { position:absolute; top:0; bottom:0; background:#61afef; }
+  .bar b { position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:#555; }
+  .row span { width:50px; text-align:right; font-variant-numeric:tabular-nums; }
+  .flags { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; max-width:560px; }
+  .flag { padding:4px 10px; border-radius:4px; background:#1c2230; color:#667; transition:background .15s; }
+  .flag.on { background:#98c379; color:#000; }
+  .flag.edge { background:#e5c07b; color:#000; transition:none; }
+  h2 { font-size:14px; margin:18px 0 0; color:#7f8aa3; }
+  p.note { color:#7f8aa3; max-width:560px; font-size:12px; }
+</style>
+</head>
+<body>
+<h1>Gamepad test</h1>
+<div id="status">Sin mando: conectá uno y presioná cualquier botón.</div>
+<label><input type="checkbox" id="inv" checked> invertY (stick arriba = morro abajo)</label>
+<h2>Ejes</h2>
+<div id="axes"></div>
+<h2>Botones</h2>
+<div class="flags" id="held"></div>
+<h2>pressed (flanco; se ilumina ~300 ms)</h2>
+<div class="flags" id="pressed"></div>
+<p class="note">Mapeo: stick der = pitch/yaw · LB/RB = roll · stick izq = strafe · RT/LT = acelerar/frenar ·
+A o L3 = boost · X autopilot · B brake · Y cámara · R3 freelook · D-pad der/izq = siguiente/anterior objetivo · arriba = etiquetas · abajo = ayuda.</p>
+
+<script type="module">
+import { GamepadInput } from '../src/gamepad.js';
+
+const pad = new GamepadInput();
+const $ = (id) => document.getElementById(id);
+const axisNames = ['pitch','yaw','roll','throttle','strafeX','strafeY'];
+const axes = {};
+for (const n of axisNames) {
+  const r = document.createElement('div'); r.className = 'row';
+  r.innerHTML = `<label>${n}</label><div class="bar"><b></b><i></i></div><span>0.00</span>`;
+  $('axes').appendChild(r);
+  axes[n] = { fill: r.querySelector('i'), val: r.querySelector('span') };
+}
+const mkFlag = (parent, n) => { const d = document.createElement('div'); d.className = 'flag'; d.textContent = n; $(parent).appendChild(d); return d; };
+const held = { boost: mkFlag('held','boost'), freelookHeld: mkFlag('held','freelookHeld') };
+const pressed = {};
+const lastEdge = {};
+for (const k of ['autopilot','brake','camera','freelook','nextTarget','prevTarget','labels','help']) pressed[k] = mkFlag('pressed', k);
+
+$('inv').onchange = (e) => { GamepadInput.invertY = e.target.checked; };
+
+function frame() {
+  const s = pad.poll();
+  const st = $('status');
+  st.textContent = pad.connected ? 'Conectado: ' + pad.name : 'Sin mando: conectá uno y presioná cualquier botón.';
+  st.className = pad.connected ? 'ok' : '';
+  for (const n of axisNames) {
+    const v = s[n];
+    const f = axes[n].fill;
+    f.style.left = (v < 0 ? 50 + v * 50 : 50) + '%';
+    f.style.width = Math.abs(v) * 50 + '%';
+    axes[n].val.textContent = v.toFixed(2);
+  }
+  for (const k in held) held[k].classList.toggle('on', !!s[k]);
+  const now = performance.now();
+  for (const k in pressed) {
+    if (s.pressed[k]) lastEdge[k] = now;
+    pressed[k].classList.toggle('on', now - (lastEdge[k] || -1e9) < 300);
+  }
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
