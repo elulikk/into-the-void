@@ -9,6 +9,7 @@ import { Ship } from './ship.js';
 import { ChaseCamera } from './camera.js';
 import { SpaceDust } from './dust.js';
 import { HUD } from './hud.js';
+import { TerrainManager } from './planet/terrain.js';
 import { julianDate, poleToEcliptic } from './ephemeris.js';
 import { eclToThree } from './system.js';
 
@@ -117,6 +118,7 @@ system.renderer = renderer; // para precalcular las tablas de las atmósferas
 const ship = new Ship(scene);
 const cam = new ChaseCamera(65);
 const dust = new SpaceDust(scene);
+const terrain = new TerrainManager(scene, system);
 const loading = document.getElementById('loading');
 await system.build((name, p) => {
   loading.querySelector('.bar i').style.width = `${p * 100}%`;
@@ -141,7 +143,7 @@ let audio = null, pad = null;
 import('./audio.js').then(m => { audio = new m.ShipAudio(); }).catch(e => console.warn('Sin sonido:', e.message));
 import('./gamepad.js').then(m => { pad = new m.GamepadInput(); }).catch(e => console.warn('Sin gamepad:', e.message));
 
-window.__game = { ship, system, renderer, scene, camera, cam, composer, bloom }; // para depurar desde la consola
+window.__game = { ship, system, renderer, scene, camera, cam, composer, bloom, terrain }; // para depurar desde la consola
 const hud = new HUD(system, ship, b => { ship.target = b; ship.status = `Objetivo: ${b.name}`; });
 loading.classList.add('done');
 
@@ -227,12 +229,25 @@ addEventListener('keyup', e => {
 });
 addEventListener('blur', () => { ship.keys.clear(); rightHeld = altHeld = false; });
 
+// la cámara de persecución no se mete debajo del terreno
+const _cv = new THREE.Vector3();
+function keepCameraAboveGround(p) {
+  const b = ship.frame;
+  if (!b?.recipe) return;
+  const d = p.distanceTo(b.pos);
+  if (d > b.R + b.recipe.maxH + 1000) return;
+  const minD = system.surfaceRadius(b, p, 1) + 3;
+  if (d < minD) p.copy(b.pos).add(_cv.subVectors(p, b.pos).multiplyScalar(minD / d));
+}
+
 // ---------- bucle
 const clock = new THREE.Clock();
 const renderQuat = new THREE.Quaternion();
 let frameCount = 0;
-function frame() {
-  const dt = Math.min(0.1, clock.getDelta());
+// step(dtFijo) avanza un cuadro; con __game.manual = true el bucle de rAF se detiene y
+// se puede avanzar a mano desde la consola (útil con la pestaña oculta).
+function step(fixedDt) {
+  const dt = fixedDt ?? Math.min(0.1, clock.getDelta());
   // texturas pendientes: una cada ~10 cuadros para no trabar
   if (system.textureQueue.length && (frameCount++ % 10 === 0)) system.generateNextTexture();
   if (!paused) simMs += dt * 1000 * WARPS[warpIdx];
@@ -251,8 +266,11 @@ function frame() {
 
   // re-anclar la nave a su marco con las posiciones nuevas antes de moverla
   ship.world.copy(ship.frame.pos).add(ship.local);
+  const dq = ship.coRotate();
+  if (dq) cam.lagQuat.premultiply(dq);
   ship.update(dt, system, padState);
   cam.update(dt, ship);
+  keepCameraAboveGround(cam.world);
 
   // cámara: posición absoluta en doubles → todo se dibuja relativo a ella
   const camWorld = cam.world;
@@ -267,6 +285,7 @@ function frame() {
   ship.model.quaternion.copy(ship.renderQuat(renderQuat));
   ship.model.visible = ship.thirdPerson;
   system.syncRender(camWorld, camera, ship.world, ship.frame);
+  terrain.update(camWorld, camera);
 
   const speed01 = Math.min(1, ship.vel.length() / Math.max(1, ship.vmax));
   dust.update(dt, ship.vel, speed01, ship.cruise === 'on' ? 1 : 0);
@@ -277,6 +296,13 @@ function frame() {
   audio?.update(ship.audioState(), dt);
   hud.update(camera, new Date(simMs), WARPS[warpIdx], paused);
   ship.events.length = 0;
+}
+function frame() {
+  if (window.__game.manual) return;
+  step();
   requestAnimationFrame(frame);
 }
+window.__game.step = step;
+window.__game.warp = i => { warpIdx = i; };
+window.__game.resume = () => { window.__game.manual = false; clock.getDelta(); frame(); };
 frame();

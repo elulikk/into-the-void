@@ -23,6 +23,8 @@ necesitás conexión a internet.
 | Un cuerpo lejano mide menos de 1 píxel | Puntos de tamaño fijo y marcadores en el HUD. |
 | Estrellas | Escena aparte que sólo comparte la rotación de la cámara. |
 
+**Terreno real (fase 3):** los cuerpos rocosos (Luna, Tierra, Marte, Mercurio y las lunas) pasan a un cubo-esfera con quadtree de chunks generados en Web Workers (`src/planet/`) cuando te acercás a menos de ~6 radios. Podés volar a pocos metros del suelo; la nave choca contra el relieve real (10 m de margen) y gira con el cuerpo cerca de él. Detalle en `PLAN_MEJORAS.md`.
+
 Efemérides: elementos keplerianos de JPL (Standish, 1800–2050) para los planetas y
 elementos medios para la Luna. Las demás lunas usan órbitas circulares aproximadas en
 el plano ecuatorial de su planeta, con fase inicial aproximada. Los ejes de rotación
@@ -52,7 +54,6 @@ Pulsá **H** dentro del juego para ver todos los controles.
 
 ## Próximos pasos posibles
 
-- Terreno con LOD (quadtree sobre cubo-esfera) para volar a baja altura sin texturas borrosas.
 - Atmósfera vista desde adentro (cielo, perspectiva aérea) y nubes.
 - Sombras de los anillos y eclipses.
 - Física newtoniana opcional (órbitas reales de la nave) además del modo arcade.
