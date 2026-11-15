@@ -159,6 +159,32 @@ Datos y licencias: antes de bajar cualquier dataset se pide permiso con fuente, 
 - **Mapa planetario:** al acercarte a un planeta, globo holográfico con los puntos icónicos de B9, la posición de la nave, el terminador día/noche y marcadores para ir a un lugar ("ir a Olympus Mons").
 - Estética coherente con el HUD (`hud-indicadores`): scanlines suaves, parpadeo al abrir, sonido de interfaz.
 
+## PARTE D: visión y sensores (para mundos oscuros)
+| Modo | Qué hace | Dato real |
+|---|---|---|
+| **Faros y bengalas** | Focos delanteros y luces de aterrizaje con haz visible en la niebla y las nubes; bengalas lanzables que iluminan una zona un rato. | — |
+| **Visión nocturna** | Amplifica la poca luz que haya; tono verde con grano. | — |
+| **Térmica / infrarroja** | Cada píxel según su temperatura (paletas blanco-caliente, hierro, arcoíris). La temperatura sale del modelo físico del HUD (`physics/environment`): día/noche, latitud, altura, lava, topes de nubes fríos. | Bajo las nubes de Venus el suelo está a 464 °C y brilla en infrarrojo; así lo fotografiaron Venus Express y Akatsuki. |
+| **Radar / LIDAR** | Pulso que barre el terreno y lo revela en malla topográfica, aunque haya nubes opacas. | Así mapeó Venus la sonda Magellan. |
+
+Se cambia con una tecla de modo, con indicador en el HUD y sonido. Técnica: modo en el shader del terreno + pase de post-proceso.
+
+## PARTE E: etiquetas de lugares
+- Base de datos con **coordenadas reales** (nomenclátor planetario de la IAU/USGS, dominio público), empezando por:
+  - Tierra: continentes, océanos, ciudades, montañas.
+  - Luna: mares, cráteres, sitios del Apolo.
+  - Marte: Olympus Mons, Valles Marineris, Hellas, Gale (Curiosity), Jezero (Perseverance).
+- Aparecen por nivel de detalle (de lejos continentes y mares, de cerca cráteres y ciudades), se ocultan tras el horizonte y se desvanecen suave. Clic → "ir a".
+- **Depende de B9**: sin geografía real las etiquetas caerían sobre continentes inventados.
+
+## PARTE F: mucho más detalle (prioridad Tierra, Luna, Marte)
+- **Geografía:** base real (B9) + mosaicos de más resolución alrededor de lugares famosos + detalle procedural.
+- **3D:** rocas por instancias, vegetación por bioma en la Tierra, ciudades procedurales en coordenadas reales con luces nocturnas, nieve, ríos.
+- **Visual:** sombras del terreno y la nave, océano con olas/espuma/reflejos, relieve fino, perspectiva aérea, auroras (Tierra, Júpiter).
+- **Atmósfera desde adentro:** cielo completo, atardeceres; clima: lluvia, nieve, niebla, tormentas de polvo en Marte, relámpagos.
+- **Sonido ambiente:** viento según densidad (Marte fino y apagado, como en las grabaciones de Perseverance), truenos, lluvia, oleaje, silencio en la Luna, Doppler de la nave, sonidos de interfaz.
+- **Música (más adelante):** sistema adaptativo por capas (exploración, aproximación, descenso); dejar ganchos desde ahora (bus de audio, ducking).
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
@@ -168,7 +194,15 @@ Datos y licencias: antes de bajar cualquier dataset se pide permiso con fuente, 
 5. **Atmósfera desde adentro, nubes, aterrizaje y descensos cinematográficos** (B4 completo, B5, B8): Venus primero.
 6. **Gigantes gaseosos animados, anillos con sombras, descensos a Júpiter/Saturno, plumas de Ío, pulido** (B6, B8).
 7. **Fidelidad real por capas y puntos icónicos** (B9): primero Marte y la Luna (MOLA/LOLA + Olympus Mons, Valles Marineris, Tycho).
-8. **Mapa holográfico 3D, minimapa y mapa planetario** (C1). Es independiente del terreno, así que puede ir en paralelo.
+8. **Mapa holográfico 3D, minimapa y mapa planetario** (C1).
+
+### Orden acordado para lo que sigue (una sesión por vez, en Sonnet)
+1. **Sensores** (D): faros y bengalas, visión nocturna, térmica, radar/LIDAR.
+2. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos.
+3. **Etiquetas de lugares** (E).
+4. **Detalle 3D y visual** (F): Tierra, Luna, Marte.
+5. **Clima y sonido ambiente** (F).
+6. **Mapa holográfico** (C1) y, al final, **música**.
 
 ## Cambios técnicos de base
 - Tal vez convenga pasar a **Vite** (dev server + bundling de workers y GLSL en archivos `.glsl`). Si no, se pueden seguir usando módulos ES nativos con workers `type: "module"`.
