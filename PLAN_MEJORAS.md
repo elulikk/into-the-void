@@ -1,6 +1,7 @@
 # Plan de mejoras: vuelo de la nave + planetas procedurales
 
 ## Decisiones tomadas
+- **Principio rector: realista para aprender, con libertades creativas para que sea lindo y satisfactorio.** La base siempre es real: posiciones, escalas, datos físicos, geografía, composición y nombres. Encima se exagera lo que suma a la experiencia (colores más cálidos, más rocas en los anillos, ríos de lava en Venus, turbulencia). Cuando algo está dramatizado, el juego lo dice (ver "Aprender jugando").
 - **Vuelo muy arcade** (tipo Freelancer/No Man's Sky): giros rápidos y con respuesta, sin deriva lateral, alabeo automático y cámara con resorte. El Flight Assist apagado (A2) queda fuera; el empuje mantiene algo de rampa para que haya "peso".
 - **Se empieza por la fase 1 (vuelo).** Fases 1 y 2 terminadas y en `main`. **Fase 3 terminada** en la rama `fase3-terreno` (pendiente de merge).
 - **Cada fase se hace en una sesión nueva** (para no acumular contexto).
@@ -255,6 +256,12 @@ Dos imágenes de referencia, de arte digital sin fuente conocida. Están solo en
 
 Técnica: textura radial de alta resolución (ya existe una base en `ringTexture`) más **instancias de partículas en la vecindad de la cámara** (campo procedural determinista por celda, como el polvo espacial pero con rocas 3D, generadas y recicladas alrededor de la nave), sombras de rocas sobre el plano, motion blur por velocidad, iluminación de dispersión hacia adelante (los anillos brillan a contraluz), y sonido de impactos de hielo al cruzar.
 
+## PARTE H: aprender jugando
+- **Fichas de cada cuerpo y lugar:** al apuntar o acercarte, datos reales breves (tamaño, gravedad, temperatura, atmósfera, día y año, quién lo descubrió o visitó y qué misiones fueron) y una curiosidad. Se abren con una tecla, sin tapar el vuelo.
+- **Marca de "licencia creativa":** cuando lo que ves está exagerado o inventado (ríos de lava en Venus, colores de los anillos, densidad de rocas), un ícono discreto en la ficha explica qué es real y qué no. Ejemplo: "Los anillos son 99 % hielo de agua; acá se ven más rocosos y cálidos para que luzcan".
+- **Comparaciones con escala humana:** como las equivalencias del velocímetro, pero para tamaños, presiones y temperaturas ("la presión en Venus equivale a estar a 900 m bajo el mar").
+- **Hitos de exploración (opcional):** visitar lugares reales (sitios del Apolo, rovers de Marte, la Gran Mancha Roja, cruzar los anillos) desbloquea su ficha completa.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
@@ -270,7 +277,7 @@ Técnica: textura radial de alta resolución (ya existe una base en `ringTexture
 1. **Sensores** (D): faros y bengalas, visión nocturna, térmica, radar/LIDAR.
 2. **Cabina y aterrizaje automático** (G).
 3. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos.
-4. **Etiquetas de lugares** (E).
+4. **Etiquetas de lugares** (E) + **fichas para aprender** (H).
 5. **Detalle 3D y visual** (F): Tierra, Luna, Marte.
 6. **Clima y sonido ambiente** (F).
 7. **Mapa holográfico** (C1) y, al final, **música**.
