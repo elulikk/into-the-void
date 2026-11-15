@@ -2,6 +2,7 @@
 // La posición se guarda RELATIVA al cuerpo dominante (marco de referencia),
 // así la nave acompaña a la Tierra/Luna/etc. aunque aceleres el tiempo.
 import * as THREE from 'three';
+import * as engines from './ship/engines.js';
 
 export const C = 299792458;
 
@@ -59,11 +60,8 @@ function buildModel() {
   return g;
 }
 
-// ---- parámetros de manejo (arcade)
-const RATE = { pitch: 1.5, yaw: 1.25, roll: 2.6 };     // rad/s máximos
-const RESP = { pitch: 6, yaw: 5, roll: 8 };            // respuesta del giro (1/s): más alto = más seco
-const NORMAL_CAP = 3000;                                // m/s sin supercrucero
-const CRUISE_CHARGE = 1.5;                              // s de carga del supercrucero
+// ---- parámetros de manejo: los rates y la respuesta por modo están en src/ship/engines.js
+const ROLL_RATE = 2.6;                                  // sólo para normalizar el RCS del sonido
 const STICK_PX = 260;                                   // px de mouse para llegar al tope del joystick virtual
 const DEAD = 0.05;
 const CLEARANCE = 10;                                  // m sobre el terreno real
@@ -100,6 +98,11 @@ export class Ship {
     this.boost = 0;                        // 0..1 con rampa
     this.cruise = 'off';                   // 'off' | 'charging' | 'on'
     this.cruiseCharge = 0;                 // 0..1
+    this.engineMode = 'impulse';           // 'atmo' | 'impulse' | 'cruise' (ver src/ship/engines.js)
+    this.engineTransition = 1;             // 0..1: spool del modo actual (en crucero = carga)
+    this.engineEnv = null;                 // entorno del último cuadro (aire, zona atmosférica…)
+    this.reentry = 0;                      // 0..1: calor de reentrada / buffeting
+    this.mach = 0;                         // velocidad / velocidad del sonido local (0 sin aire)
     this.events = [];                      // eventos para cámara/sonido ('cruise-on', 'cruise-drop', ...)
     this.strafe = new THREE.Vector2();
     this.visualTilt = new THREE.Vector3(); // inclinación cosmética del modelo
@@ -133,18 +136,10 @@ export class Ship {
 
   recenter() { this.stick.set(0, 0); }
 
-  toggleCruise() {
-    if (this.cruise === 'off') { this.cruise = 'charging'; this.cruiseCharge = 0; this.status = 'Supercrucero: cargando…'; }
-    else this.dropCruise('manual');
-  }
-
-  dropCruise(reason) {
-    if (this.cruise === 'off') return;
-    const was = this.cruise;
-    this.cruise = 'off'; this.cruiseCharge = 0;
-    if (was === 'on') this.events.push('cruise-drop');
-    this.status = `Supercrucero desactivado (${reason})`;
-  }
+  toggleCruise() { engines.toggleCruise(this); }
+  dropCruise(reason) { engines.dropCruise(this, reason); }
+  setEngineMode(mode) { return engines.requestMode(this, mode); }
+  cycleEngineMode() { return engines.cycleMode(this); }
 
   update(dt, system, pad = null) {
     this.system = system;
@@ -179,31 +174,21 @@ export class Ship {
     const near = system.nearestSurface(this.world);
     this.nearest = near;
 
-    if (!this.autopilot) {
-      const target = new THREE.Vector3(pitchIn * RATE.pitch, -yawIn * RATE.yaw, -rollIn * RATE.roll);
-      if (directRate) { target.x += directRate.x; target.y += directRate.y; }
+    const env = engines.engineEnv(near);
+    const vTarget = engines.stepEngines(this, dt, env);
 
-      // auto-nivelación cerca de un planeta: alinear el "arriba" de la nave con la vertical local
-      const b = near.body;
-      if (b && b.id !== 'sun' && Math.abs(rollIn) < 0.05) {
-        const s = 1 - THREE.MathUtils.smoothstep(near.alt, b.R * 0.3, b.R * 1.5);
-        if (s > 0) {
-          const up = _v.subVectors(this.world, b.pos).normalize().applyQuaternion(_q.copy(this.quat).invert());
-          if (Math.abs(up.z) < 0.92) {
-            const err = Math.atan2(-up.x, up.y);
-            target.z += THREE.MathUtils.clamp(err * 1.5, -1.2, 1.2) * s;
-          }
-        }
-      }
+    if (!this.autopilot) {
+      const { target, resp } = engines.rotationTarget(this, env, { pitch: pitchIn, yaw: yawIn, roll: rollIn });
+      if (directRate) { target.x += directRate.x; target.y += directRate.y; }
       const r = directRate ? 25 : 0;
-      this.angVel.x += (target.x - this.angVel.x) * expK(r || RESP.pitch, dt);
-      this.angVel.y += (target.y - this.angVel.y) * expK(r || RESP.yaw, dt);
-      this.angVel.z += (target.z - this.angVel.z) * expK(RESP.roll, dt);
+      this.angVel.x += (target.x - this.angVel.x) * expK(r || resp.pitch, dt);
+      this.angVel.y += (target.y - this.angVel.y) * expK(r || resp.yaw, dt);
+      this.angVel.z += (target.z - this.angVel.z) * expK(resp.roll, dt);
       _q.setFromEuler(_e.set(this.angVel.x * dt, this.angVel.y * dt, this.angVel.z * dt, 'YXZ'));
       this.quat.multiply(_q).normalize();
     }
 
-    // ================= acelerador, boost, supercrucero =================
+    // ================= acelerador y boost (la carga del crucero está en engines.js) =================
     const thrUp = key('KeyW') + (pad && pad.throttle > 0.1 ? pad.throttle : 0);
     const thrDn = key('KeyS') + (pad && pad.throttle < -0.1 ? -pad.throttle : 0);
     if (thrUp || thrDn) {
@@ -213,23 +198,11 @@ export class Ship {
     const boosting = key('ShiftLeft') || key('ShiftRight') || (pad && pad.boost);
     this.boost += ((boosting ? 1 : 0) - this.boost) * expK(boosting ? 2.5 : 1.5, dt);
 
-    if (this.cruise === 'charging') {
-      this.cruiseCharge = Math.min(1, this.cruiseCharge + dt / CRUISE_CHARGE);
-      if (this.cruiseCharge >= 1) {
-        this.cruise = 'on';
-        this.events.push('cruise-on');
-        if (!this.autopilot) this.status = 'Supercrucero activo';
-      }
-    }
-
-    const altV = Math.max(40, near.alt * 0.75) * this.speedFactor;
-    let vTarget = this.cruise === 'on' ? altV : Math.min(altV, NORMAL_CAP * this.speedFactor);
-    vTarget *= 1 + 3 * this.boost;
     // subir suave (no hay saltos al cambiar de cuerpo), bajar inmediato (no chocar)
     if (!this.vmax || vTarget < this.vmax) this.vmax = vTarget;
     else this.vmax += (vTarget - this.vmax) * expK(1.5, dt);
 
-    // ================= velocidad (arcade: sin deriva) =================
+    // ================= velocidad (según el modo de motor, ver engines.js) =================
     const fwd = this.forward();
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.quat);
     const upV = new THREE.Vector3(0, 1, 0).applyQuaternion(this.quat);
@@ -237,24 +210,10 @@ export class Ship {
     if (pad) { this.strafe.x += pad.strafeX; this.strafe.y += pad.strafeY; }
     this.strafe.clampScalar(-1, 1);
 
-    let desired;
-    if (this.autopilot && this.target) {
-      desired = this.autopilotStep(dt, fwd);
-    } else {
-      desired = fwd.clone().multiplyScalar(this.throttle * this.vmax);
-      const sv = 0.35 * Math.min(this.vmax, NORMAL_CAP * this.speedFactor);
-      desired.addScaledVector(right, this.strafe.x * sv).addScaledVector(upV, this.strafe.y * sv);
-    }
-    const diff = _v.subVectors(desired, this.vel);
-    const along = diff.dot(fwd);
-    const lateral = _v2.copy(diff).addScaledVector(fwd, -along);
-    this.vel.addScaledVector(fwd, along * expK(along > 0 ? 1.6 : 2.4, dt));
-    this.vel.addScaledVector(lateral, expK(5, dt));
-    const spd = this.vel.length();
-    if (spd > this.vmax * 1.05) {
-      if (spd > this.vmax * 3 && spd > NORMAL_CAP) this.events.push('slam');  // frenada brusca
-      this.vel.setLength(this.vmax * 1.05);
-    }
+    const axes = { fwd, right, up: upV };
+    const desired = this.autopilot && this.target ? this.autopilotStep(dt, fwd)
+      : engines.manualDesired(this, env, axes);
+    engines.integrateVelocity(this, dt, desired, env, axes);
 
     this.local.addScaledVector(this.vel, dt);
     this.world.copy(this.frame.pos).add(this.local);
@@ -358,7 +317,6 @@ export class Ship {
     this.autopilot = true;
     this.throttle = 0;
     this.recenter();
-    if (this.cruise === 'off') { this.cruise = 'charging'; this.cruiseCharge = 0; }
     this.status = `Piloto automático → ${this.target.name}`;
   }
 
@@ -378,8 +336,12 @@ export class Ship {
       cruiseCharge: this.cruise === 'charging' ? this.cruiseCharge : 0,
       cruiseActive: this.cruise === 'on',
       turnRate: Math.min(1, this.angVel.length() / 2),
-      rcs: Math.min(1, this.strafe.length() + Math.abs(this.angVel.z) / RATE.roll * 0.5),
+      rcs: Math.min(1, this.strafe.length() + Math.abs(this.angVel.z) / ROLL_RATE * 0.5),
       atmoDensity: Math.min(1, atmo),
+      engineMode: this.engineMode,             // 'atmo' | 'impulse' | 'cruise'
+      engineTransition: this.engineTransition, // 0..1
+      reentry: this.reentry,                   // 0..1
+      mach: this.mach,
     };
   }
 }

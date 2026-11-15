@@ -184,7 +184,9 @@ export class HUD {
     this.el('t-sun').textContent = fmtDist(ship.world.length());
     this.el('t-speed').textContent = fmtSpeed(spd);
     this.el('t-vmax').textContent = fmtSpeed(ship.vmax);
-    const mode = ship.cruise === 'on' ? 'SUPERCRUCERO' : charging ? 'CARGANDO…' : 'NORMAL';
+    const ENG = { atmo: 'ATMOSFÉRICO', impulse: 'IMPULSO', cruise: 'SUPERCRUCERO' };
+    const mode = charging ? 'CARGANDO…' : (ENG[ship.engineMode] ?? 'NORMAL') +
+      (ship.engineMode === 'atmo' && ship.mach > 0.05 ? ` · M ${ship.mach.toFixed(2)}` : '');
     this.el('t-mode').textContent = mode + (ship.boost > 0.5 ? ' · BOOST' : '');
     this.el('t-light').textContent = fmtTime(ship.world.length() / C);
     const thr = ship.autopilot ? 'AUTO' : `${Math.round(ship.throttle * 100)}%`;

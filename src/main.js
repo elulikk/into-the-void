@@ -135,7 +135,7 @@ system.update(julianDate(simMs));
     .normalize().multiplyScalar(22000e3);
   ship.place(earth, offset, earth.pos);
   ship.target = system.byId.moon;
-  ship.status = 'Objetivo: Luna. G = piloto automático · J = supercrucero · H = controles';
+  ship.status = 'Objetivo: Luna. T = modo de motor · G = piloto automático · J = supercrucero · H = controles';
 }
 
 // módulos opcionales (sonido y gamepad): si no están o fallan, el juego sigue igual
@@ -182,6 +182,9 @@ function action(name, shift = false) {
       break;
     }
     case 'autopilot': ship.autopilot ? ship.disengage('manual') : ship.engage(); break;
+    case 'engineMode': ship.cycleEngineMode(); break;
+    case 'engineAtmo': ship.setEngineMode('atmo'); break;
+    case 'engineImpulse': ship.setEngineMode('impulse'); break;
     case 'cruise': ship.toggleCruise(); if (ship.autopilot && ship.cruise === 'off') ship.disengage('supercrucero'); break;
     case 'brake':
       ship.throttle = 0; ship.disengage('freno'); ship.dropCruise('freno'); ship.recenter(); ship.status = 'Detenido';
@@ -206,6 +209,9 @@ addEventListener('keydown', e => {
   }
   if (e.code === 'KeyG') action('autopilot');
   if (e.code === 'KeyJ') action('cruise');
+  if (e.code === 'KeyT') action('engineMode');
+  if (e.code === 'KeyY') action('engineAtmo');
+  if (e.code === 'KeyU') action('engineImpulse');
   if (e.code === 'KeyX') action('brake');
   if (e.code === 'KeyC') action('camera');
   if (e.code === 'KeyL') action('labels');

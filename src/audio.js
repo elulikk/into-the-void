@@ -4,7 +4,13 @@
 //   const audio = new ShipAudio();
 //   window.addEventListener('pointerdown', () => audio.resume(), { once: true });
 //   // cada frame:
-//   audio.update({ throttle, speed01, boost, cruiseCharge, cruiseActive, turnRate, rcs, atmoDensity }, dt);
+//   audio.update({ throttle, speed01, boost, cruiseCharge, cruiseActive, turnRate, rcs, atmoDensity,
+//                  engineMode, engineTransition, reentry }, dt);
+//
+// Cada modo de motor suena distinto (src/ship/engines.js):
+//   'atmo'    turbina de jet: silbido agudo que sube con el empuje + rugido de ruido (postcombustión con Shift)
+//   'impulse' rumor grave del motor principal (osciladores + ruido marrón)
+//   'cruise'  drone de supercrucero
 
 const MASTER_LEVEL = 0.5;
 
@@ -188,6 +194,26 @@ export class ShipAudio {
     this._noiseSource(pink).connect(n.windFilter);
     n.windFilter.connect(windLp); windLp.connect(n.windGain); n.windGain.connect(n.master);
 
+    // ---- Turbina (modo atmosférico): silbido + armónico, filtrados en banda, y rugido de ruido
+    n.jetGain = ctx.createGain(); n.jetGain.gain.value = 0;
+    n.jetFilter = ctx.createBiquadFilter();
+    n.jetFilter.type = 'bandpass'; n.jetFilter.frequency.value = 1200; n.jetFilter.Q.value = 3;
+    n.jetA = this._osc('sawtooth', 600);
+    n.jetB = this._osc('sine', 1206);
+    const ja = ctx.createGain(); ja.gain.value = 0.35; n.jetA.connect(ja); ja.connect(n.jetFilter);
+    const jb = ctx.createGain(); jb.gain.value = 0.5; n.jetB.connect(jb); jb.connect(n.jetFilter);
+    n.jetFilter.connect(n.jetGain); n.jetGain.connect(n.master);
+    n.roarGain = ctx.createGain(); n.roarGain.gain.value = 0;
+    n.roarFilter = ctx.createBiquadFilter();
+    n.roarFilter.type = 'lowpass'; n.roarFilter.frequency.value = 500; n.roarFilter.Q.value = 0.6;
+    this._noiseSource(pink).connect(n.roarFilter);
+    const roarLow = this._noiseSource(brown); const rlg = ctx.createGain(); rlg.gain.value = 0.6;
+    roarLow.connect(rlg); rlg.connect(n.roarFilter);
+    n.roarFilter.connect(n.roarGain); n.roarGain.connect(n.master);
+
+    // pesos de cada modo (se mezclan con suavidad al cambiar)
+    n.mode = { atmo: 0, impulse: 1, cruise: 0 };
+
     n.pink = pink; n.brown = brown;
   }
 
@@ -235,16 +261,37 @@ export class ShipAudio {
     const turn = clamp01(state.turnRate);
     const rcs = clamp01(state.rcs);
     const atmo = clamp01(state.atmoDensity);
+    const heat = clamp01(state.reentry);
+    const spool = state.engineTransition === undefined ? 1 : clamp01(state.engineTransition);
+
+    // pesos de cada modo, con crossfade de ~0,4 s
+    const em = state.engineMode || (active ? 'cruise' : 'impulse');
+    const w = n.mode;
+    const k = 1 - Math.exp(-(dt || 0.016) / 0.35);
+    for (const m of ['atmo', 'impulse', 'cruise']) w[m] += ((em === m ? 1 : 0) - w[m]) * k;
+    const lvl = 0.35 + 0.65 * spool;  // el motor nuevo entra con su spool-up
+
+    // Turbina: el silbido sigue al acelerador con retraso (inercia del rotor)
+    const drive0 = Math.max(throttle, speed * 0.6);
+    const jf = 420 + drive0 * 900 + boost * 250;
+    this._smooth(n.jetA.frequency, jf * (0.6 + 0.4 * spool), 0.5);
+    this._smooth(n.jetB.frequency, jf * 2.01 * (0.6 + 0.4 * spool), 0.5);
+    this._smooth(n.jetFilter.frequency, jf * 1.9, 0.5);
+    this._smooth(n.jetGain.gain, w.atmo * lvl * (0.05 + drive0 * 0.1), 0.15);
+    this._smooth(n.roarFilter.frequency, 300 + drive0 * 1400 + boost * 1500, 0.2);
+    this._smooth(n.roarGain.gain, w.atmo * lvl * (0.06 + drive0 * 0.25 + boost * 0.3) + heat * 0.5, 0.15);
 
     // Motor
     const drive = Math.max(throttle, speed * 0.6);
-    const pitch = 52 + throttle * 38 + speed * 60 + boost * 30 + (active ? 15 : 0);
+    // en impulso suena más grave y pesado; en atmósfera queda de fondo bajo la turbina
+    const pitch = (52 + throttle * 38 + speed * 60 + boost * 30 + (active ? 15 : 0)) * (1 - 0.18 * w.impulse);
     this._smooth(n.engSaw.frequency, pitch, 0.12);
     this._smooth(n.engSaw2.frequency, pitch * 1.006, 0.12);
     this._smooth(n.engTri.frequency, pitch, 0.12);
     this._smooth(n.engSub.frequency, pitch * 0.5, 0.12);
     this._smooth(n.engFilter.frequency, 220 + drive * 650 + boost * 500 + turn * 120, 0.15);
-    const engVol = (0.1 + drive * 0.28 + boost * 0.08) * (active ? 0.6 : 1);
+    const engVol = (0.1 + drive * 0.28 + boost * 0.08) * (active ? 0.6 : 1) *
+      (w.impulse * lvl * 1.15 + w.atmo * 0.3 + w.cruise * 0.8);
     this._smooth(n.engGain.gain, engVol, 0.15);
 
     // Boost
@@ -277,7 +324,7 @@ export class ShipAudio {
     this._smooth(n.rcsFilter.frequency, 1300 + rcs * 900, 0.05);
 
     // Viento
-    const wind = atmo * speed;
+    const wind = Math.min(1, atmo * speed + heat);
     this._smooth(n.windGain.gain, wind * 0.55, 0.2);
     this._smooth(n.windFilter.frequency, 250 + wind * 1100, 0.25);
     this._smooth(n.windFilter.Q,0.4 + wind * 0.5, 0.3);
