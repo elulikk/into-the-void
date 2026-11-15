@@ -5,3 +5,6 @@ Thumbs.db
 # texturas reales descargadas (pesadas; ver README)
 textures/*.jpg
 textures/*.png
+
+# imágenes de referencia con derechos de autor (solo locales)
+docs/referencias/privadas/

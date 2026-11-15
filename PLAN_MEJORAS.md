@@ -207,6 +207,17 @@ Así tiene que verse Venus debajo de las nubes. La imagen está basada en las pa
 
 Técnica: neblina de altura con el color del cielo, luz ambiente fuerte desde arriba + luz del Sol muy atenuada y difusa (sin sombras duras), receta de terreno "losas" (Voronoi plano con bordes fracturados y terrazas), rocas por instancias, y un tone mapping/grading cálido propio para Venus.
 
+### Mercurio: superficie (referencia del usuario)
+Imagen de referencia: ilustración de Science Photo Library, con derechos de autor. Está solo en local, en `docs/referencias/privadas/mercurio-superficie.webp`, y no se sube al repo.
+- **Cielo:** negro total, porque no hay atmósfera. **Estrellas y la Vía Láctea visibles a pleno día**.
+- **Sol:** enorme (unas 2,5–3 veces más grande que visto desde la Tierra) y cegador, con halo, destellos y rayos (bloom fuerte, lens flare). Bajo sobre el horizonte, deja luz rasante.
+- **Luz:** dura y direccional, **sombras negras puras con bordes filosos** y contraste extremo: la cara iluminada casi blanca y la cara en sombra casi negra. Solo un rebote muy tenue del suelo.
+- **Sin bruma:** lo lejano se ve tan nítido como lo cercano. El horizonte es una línea limpia contra el negro.
+- **Suelo:** gris (levemente frío o pardo), regolito con **rocas angulosas picadas** por microimpactos, bloques sueltos, bordes de cráteres grandes y escarpes lobulados (los acantilados típicos de Mercurio) a la distancia.
+- **Sensación:** desolada y silenciosa, luz brutal. Sonido: solo la nave, nada del exterior.
+
+Técnica: bloom y flare del Sol escalados con la distancia (Mercurio está a 0,39 UA), sombras proyectadas de alta calidad (es donde más se notan), ambiente casi nulo, estrellas visibles en la superficie (sin atenuar el cielo porque no hay atmósfera), rocas por instancias y receta de terreno con cráteres y escarpes.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
