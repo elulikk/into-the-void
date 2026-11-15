@@ -186,3 +186,8 @@ Diseño final (todo en `src/planet/`, sin THREE salvo `terrain.js`):
 Medido (1280×720, panel del navegador): ~3.5 ms/cuadro a 50 m de la Luna con ~680 chunks / 1.6 M tris; ~4.8 ms con 987 chunks / 2.3 M tris dentro de un cráter profundo. Un chunk tarda 4–12 ms en el worker. Co-rotación a ×1000: 0° de deslizamiento (8,2° sin ella). Choque a 108 km/s: nunca bajó de 10 m.
 
 **Queda para la fase 4:** shading por bioma (altura/latitud/pendiente/humedad) y detalle triplanar en el fragment shader; océano real (hoy plano a 0 m, con el color de la textura); las nubes de la textura de la Tierra aparecen pintadas en el suelo (hay que sacarlas de la textura del terreno y hacerlas capa propia); recetas específicas (Olympus Mons, Valles Marineris, calderas y lava emisiva de Ío, grietas de Europa, Fobos/Deimos no esféricos); relieve de Venus/Titán (fase 5). Ajustes posibles: `K_SPLIT`, tamaño del pool, límites de caché en `terrain.js`.
+
+## HUD de instrumentos
+- Tecla I: sci-fi / aviónica / minimalista (se guarda en localStorage).
+- `src/physics/` (datos y atmósferas por cuerpo), `src/hud/` (telemetría, instrumentos en canvas, alertas).
+- La velocidad respecto del aire (Mach, q, calentamiento) descuenta la rotación del planeta; la altitud sale de `ship.nearest.alt`, así que acompañará al terreno real cuando se integre.

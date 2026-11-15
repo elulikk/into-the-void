@@ -2,19 +2,13 @@
 // geometría de la nave, apenas inflada), onda de choque delante y chispas/estelas.
 // La intensidad sale de la densidad del aire × velocidad³ (calentamiento aerodinámico).
 import * as THREE from 'three';
-import { ATMOSPHERES } from '../bodies.js';
+import { airAt, RHO_EARTH } from '../air.js';
 
-// Densidad en superficie relativa a la Tierra (≈1,2 kg/m³). Para los gigantes, a 1 bar.
-const SURFACE_RHO = { earth: 1, mars: 0.012, venus: 50, titan: 4.5, jupiter: 0.14, saturn: 0.16, uranus: 0.35, neptune: 0.4 };
-
-// Densidad relativa (0..~2) a partir del cuerpo más cercano: exp(-altitud / escala de altura)
+// Densidad relativa a la Tierra al nivel del mar (≈1,2 kg/m³), del modelo físico único (src/air.js).
 export function atmoDensity(nearest) {
   const b = nearest?.body;
-  const A = b && ATMOSPHERES[b.id];
-  if (!A || !Number.isFinite(nearest.alt)) return 0;
-  const alt = Math.max(0, nearest.alt);
-  if (alt > A.top * 1.5) return 0;
-  return Math.min(2, (SURFACE_RHO[b.id] ?? 1) * Math.exp(-alt / A.hR));
+  if (!b || !Number.isFinite(nearest.alt)) return 0;
+  return Math.min(2, airAt(b, nearest.alt).rho / RHO_EARTH);
 }
 
 // intensidad del plasma 0..1: densidad × (v / 1 km/s)³

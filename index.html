@@ -65,9 +65,6 @@
   .panel h3 { margin: 0 0 6px; font-size: 10px; letter-spacing: 0.14em; color: var(--accent); font-weight: 600; }
   .row { display: flex; justify-content: space-between; gap: 16px; }
   .row span:first-child { color: var(--dim); }
-  #p-time { left: 16px; top: 16px; }
-  #p-nav { left: 16px; bottom: 16px; }
-  #p-target { right: 16px; top: 16px; }
   #tg-name { font-size: 15px; color: var(--accent); margin-bottom: 4px; }
   #tg-ap.on { color: #9dff9d; }
   .bar { height: 6px; background: rgba(255, 255, 255, 0.08); margin-top: 6px; position: relative; }
@@ -83,7 +80,7 @@
   @media (max-width: 1100px) { #speedo { top: auto; bottom: 92px; max-width: 90vw; } #spd-kmh { font-size: 26px; } }
   #status { position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); color: var(--fg);
     text-shadow: 0 0 6px #000; text-align: center; max-width: 60vw; pointer-events: none; }
-  #hint { position: fixed; right: 16px; bottom: 16px; color: var(--dim); text-align: right; }
+  #hint { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); color: var(--dim); text-align: center; pointer-events: none; white-space: nowrap; }
   body.locked #hint .unlocked { display: none; }
   body:not(.locked) #hint .locked { display: none; }
 
@@ -104,9 +101,68 @@
 
   @media (max-width: 720px) {
     .panel { min-width: 0; font-size: 10px; padding: 6px 8px; }
-    #p-target { top: auto; bottom: 16px; }
+    .col { width: 190px; }
     #hint { display: none; }
   }
+
+  /* ---------- HUD de instrumentos */
+  #hud-canvas { position: fixed; left: 0; top: 0; pointer-events: none; }
+  .col { position: fixed; top: 16px; display: flex; flex-direction: column; gap: 8px; width: 285px; pointer-events: none;
+    max-height: calc(100vh - 32px); overflow: hidden; }
+  #col-l { left: 16px; } #col-r { right: 16px; }
+  .col .panel { position: static; min-width: 0; padding: 8px 10px; transition: opacity 0.3s; }
+  .col .row { gap: 10px; } .col .row span:first-child { white-space: nowrap; }
+  .row b { font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; }
+  .row.wide { flex-direction: column; gap: 0; } .row.wide b { text-align: left; font-weight: 400; font-size: 11px; }
+  #o-state { text-transform: uppercase; font-size: 11px; }
+  [data-level="good"] { color: #9dff9d; } [data-level="warn"] { color: var(--warn); }
+  [data-level="crit"] { color: #ff6a5e; animation: blink 0.8s infinite; }
+  @keyframes blink { 50% { opacity: 0.45; } }
+  .vbar { position: relative; height: 6px; } .vbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); width: 0; }
+  .vbar u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--warn); text-decoration: none; }
+  .vbar u#o-bar-e { background: #ff6a5e; }
+  .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); transition: width 0.15s linear; }
+  #s-hull-fill { background: linear-gradient(90deg, #6fd3ff, #ffb35c 70%, #ff5a50); }
+  #s-hull-bar[data-level="warn"] i { filter: brightness(1.2); } #s-hull-bar[data-level="crit"] { animation: blink 0.6s infinite; }
+  #s-hull-bar, #s-energy-bar { margin: 2px 0 5px; }
+  #s-energy-fill { background: #9dff9d; } #s-energy-bar[data-level="warn"] i, #s-energy-fill { transition: width 0.3s; }
+
+  #alerts { position: fixed; left: 50%; top: 30%; transform: translateX(-50%); display: flex; flex-direction: column;
+    align-items: center; gap: 6px; pointer-events: none; z-index: 5; }
+  .alert { opacity: 0; transition: opacity 0.6s; padding: 4px 16px; letter-spacing: 0.16em; font-weight: 600; font-size: 13px;
+    border: 1px solid; background: rgba(6, 12, 20, 0.55); text-shadow: 0 0 6px #000, 0 0 2px #000; display: none; }
+  .alert.show { opacity: 1; display: block; animation: fadein 0.5s; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(-6px); } }
+  .alert.info { color: var(--accent); border-color: var(--accent); }
+  .alert.warn { color: var(--warn); border-color: var(--warn); }
+  .alert.crit { color: #ff6a5e; border-color: #ff6a5e; animation: fadein 0.5s, blink 0.7s 0.5s infinite; }
+
+  #min { position: fixed; left: 16px; bottom: 16px; display: none; flex-direction: column; gap: 10px; pointer-events: none; }
+  .mstat { display: none; } .mstat.show { display: block; }
+  .mstat span { display: block; font-size: 10px; letter-spacing: 0.2em; color: var(--dim); }
+  .mstat b { font-size: 24px; font-weight: 400; text-shadow: 0 0 6px #000; }
+
+  /* ---------- estilo: sci-fi (por defecto) */
+  body.hud-scifi .panel { border-image: linear-gradient(135deg, var(--accent), transparent 40%, transparent 60%, var(--accent)) 1; }
+
+  /* ---------- estilo: aviónica (fósforo verde) */
+  body.hud-avionics { --accent: #78ff96; --line: rgba(120, 255, 150, 0.35); --panel: rgba(0, 14, 4, 0.55); --fg: #c9ffd6; --dim: #5fa874; }
+  body.hud-avionics .panel { backdrop-filter: none; border-radius: 0; }
+  body.hud-avionics #p-time, body.hud-avionics #p-flight { display: none; }
+  body.hud-avionics #crosshair::before, body.hud-avionics #crosshair::after { background: rgba(120, 255, 150, 0.8); }
+  body.hud-avionics #spd-kmh { font-size: 22px; }
+  @media (max-width: 1000px) { body.hud-avionics .col { display: none; } }
+
+  /* ---------- estilo: minimalista */
+  body.hud-minimal { --accent: #e8f0f8; --line: transparent; }
+  body.hud-minimal .col { display: none; }
+  body.hud-minimal #min { display: flex; }
+  body.hud-minimal #spd-eq { display: none; }
+  body.hud-minimal #spd-kmh { font-size: 26px; font-weight: 400; }
+  body.hud-minimal #spd-kmh small { font-size: 11px; }
+  body.hud-minimal .alert { border-color: transparent; background: none; }
+  @media (max-height: 780px) { .col .panel { padding: 5px 8px; font-size: 11px; line-height: 1.35; } .col { gap: 5px; } #p-time { display: none; } }
+  @media (max-width: 1100px) { .col { width: 210px; } }
 </style>
 <script type="importmap">
   { "imports": {
@@ -117,6 +173,7 @@
 </head>
 <body>
   <div id="app"></div>
+  <canvas id="hud-canvas"></canvas>
   <div id="markers"></div>
   <div id="target-arrow" style="display:none"></div>
   <div id="prograde" style="display:none"></div>
@@ -127,33 +184,76 @@
   <div id="warp-vignette"></div>
   <div id="cruise"><span id="cruise-text">SUPERCRUCERO</span><div class="bar"><i id="cruise-fill"></i></div></div>
 
-  <div class="panel" id="p-time">
-    <h3>TIEMPO</h3>
-    <div class="row"><span>Fecha</span><b id="t-date"></b></div>
-    <div class="row"><span>Aceleración</span><b id="t-warp"></b></div>
+  <div class="col" id="col-l">
+    <div class="panel" id="p-time">
+      <h3>TIEMPO</h3>
+      <div class="row"><span>Fecha</span><b id="t-date"></b></div>
+      <div class="row"><span>Aceleración</span><b id="t-warp"></b></div>
+    </div>
+    <div class="panel" id="p-env">
+      <h3 id="e-title">ENTORNO</h3>
+      <div class="row"><span>Presión</span><b id="e-p"></b></div>
+      <div class="row"><span>Temperatura</span><b id="e-t"></b></div>
+      <div class="row"><span>Densidad</span><b id="e-rho"></b></div>
+      <div class="row wide"><span>Composición</span><b id="e-comp"></b></div>
+      <div class="row"><span>Capa</span><b id="e-layer"></b></div>
+      <div class="row"><span>Gravedad</span><b id="e-g"></b></div>
+      <div class="row"><span>Irradiancia</span><b id="e-sun"></b></div>
+      <div class="row"><span>Bajo la nave</span><b id="e-day"></b></div>
+      <div class="row"><span>Sol</span><b id="e-dsun"></b></div>
+    </div>
+    <div class="panel" id="p-flight">
+      <h3>VUELO</h3>
+      <div class="row"><span>Altitud</span><b id="f-alt"></b></div>
+      <div class="row"><span>Vel. vertical</span><b id="f-vs"></b></div>
+      <div class="row"><span>Velocidad / máx.</span><b id="f-speed"></b></div>
+      <div class="row"><span>Mach local</span><b id="f-mach"></b></div>
+      <div class="row"><span>Presión dinámica</span><b id="f-q"></b></div>
+      <div class="row"><span>Fuerza G</span><b id="f-g"></b></div>
+      <div class="row"><span>Rumbo</span><b id="f-hdg"></b></div>
+      <div class="row"><span>Cabeceo / alabeo</span><b id="f-att"></b></div>
+      <div class="row"><span>Marco</span><b id="f-frame"></b></div>
+    </div>
   </div>
 
-  <div class="panel" id="p-nav">
-    <h3>NAVEGACIÓN</h3>
-    <div class="row"><span>Marco</span><b id="t-frame"></b></div>
-    <div class="row"><span>Más cercano</span><b id="t-near"></b></div>
-    <div class="row"><span>Distancia al Sol</span><b id="t-sun"></b></div>
-    <div class="row"><span>Luz solar tarda</span><b id="t-light"></b></div>
-    <div class="row"><span>Velocidad</span><b id="t-speed"></b></div>
-    <div class="row"><span>Velocidad máxima</span><b id="t-vmax"></b></div>
-    <div class="row"><span>Modo</span><b id="t-mode"></b></div>
-    <div class="row"><span>Acelerador</span><b id="t-throttle"></b></div>
-    <div class="bar"><i id="throttle-fill"></i></div>
+  <div class="col" id="col-r">
+    <div class="panel" id="p-target">
+      <h3>OBJETIVO</h3>
+      <div id="tg-name">—</div>
+      <div class="row"><span>Distancia</span><b id="tg-dist"></b></div>
+      <div class="row"><span>Radio</span><b id="tg-radius"></b></div>
+      <div class="row"><span>Llegada</span><b id="tg-eta"></b></div>
+      <div class="row"><span>Piloto auto.</span><b id="tg-ap"></b></div>
+    </div>
+    <div class="panel" id="p-orbit">
+      <h3 id="o-title">ÓRBITA</h3>
+      <div class="row"><span>Estado</span><b id="o-state"></b></div>
+      <div class="row"><span>Apoapsis</span><b id="o-ap"></b></div>
+      <div class="row"><span>Periapsis</span><b id="o-pe"></b></div>
+      <div class="row"><span>Período</span><b id="o-per"></b></div>
+      <div class="row"><span>Excentricidad</span><b id="o-ecc"></b></div>
+      <div class="row"><span>Inclinación</span><b id="o-inc"></b></div>
+      <div class="row"><span>V. orbital</span><b id="o-vc"></b></div>
+      <div class="row"><span>V. de escape</span><b id="o-ve"></b></div>
+      <div class="bar vbar"><i id="o-bar-v"></i><u id="o-bar-c"></u><u id="o-bar-e"></u></div>
+    </div>
+    <div class="panel" id="p-ship">
+      <h3>NAVE</h3>
+      <div class="row"><span>Casco</span><b id="s-hull"></b></div>
+      <div class="bar" id="s-hull-bar"><i id="s-hull-fill"></i></div>
+      <div class="row"><span>Flujo térmico</span><b id="s-flux"></b></div>
+      <div class="row"><span>Energía</span><b id="s-energy"></b></div>
+      <div class="bar" id="s-energy-bar"><i id="s-energy-fill"></i></div>
+      <div class="row"><span>Balance</span><b id="s-power"></b></div>
+      <div class="row"><span>Supercrucero</span><b id="s-cruise"></b></div>
+      <div class="row"><span>Modo</span><b id="t-mode"></b></div>
+      <div class="row"><span>Acelerador</span><b id="t-throttle"></b></div>
+      <div class="bar"><i id="throttle-fill"></i></div>
+    </div>
   </div>
 
-  <div class="panel" id="p-target">
-    <h3>OBJETIVO</h3>
-    <div id="tg-name">—</div>
-    <div class="row"><span>Distancia</span><b id="tg-dist"></b></div>
-    <div class="row"><span>Radio</span><b id="tg-radius"></b></div>
-    <div class="row"><span>Llegada</span><b id="tg-eta"></b></div>
-    <div class="row"><span>Piloto auto.</span><b id="tg-ap"></b></div>
-  </div>
+  <div id="min"><div class="mstat"><span></span><b></b></div><div class="mstat"><span></span><b></b></div><div class="mstat"><span></span><b></b></div><div class="mstat"><span></span><b></b></div><div class="mstat"><span></span><b></b></div><div class="mstat"><span></span><b></b></div><div class="mstat"><span></span><b></b></div><div class="mstat"><span></span><b></b></div></div>
+  <div id="alerts"></div>
 
   <div id="speedo"><div id="spd-eq"></div><div id="spd-kmh">0<small>km/h</small></div></div>
   <div id="status"></div>
@@ -191,6 +291,7 @@
         <tr><td>C · L · O</td><td>Cámara 1ª/3ª persona · etiquetas · órbitas</td></tr>
         <tr><td>B · M</td><td>Bloom · silenciar sonido</td></tr>
         <tr><td>Gamepad</td><td>Se detecta solo al tocar un botón · Back/View = modo de motor</td></tr>
+        <tr><td>I</td><td>Estilo del HUD: sci-fi · aviónica · minimalista</td></tr>
         <tr><td>H</td><td>Mostrar / ocultar esta ayuda</td></tr>
       </table>
       <p>Todo está a escala real 1:1. En supercrucero la velocidad máxima es ~0,75 × la altitud sobre el
