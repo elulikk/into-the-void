@@ -94,7 +94,7 @@ const ldrFS = /* glsl */`
 export class Cinematic {
   constructor() {
     this.enabled = true;
-    this.settings = { shafts: 0.8, flare: 0.6, grade: 0.8, vignette: 0.28, grain: 0.012 };
+    this.settings = { shafts: 0.8, flare: 0.3, grade: 0.8, vignette: 0.28, grain: 0.012 };
     this.hdr = new ShaderPass({
       uniforms: {
         tDiffuse: { value: null }, uSunUV: { value: new THREE.Vector2(0.5, 0.5) },
@@ -110,7 +110,7 @@ export class Cinematic {
       vertexShader: VS, fragmentShader: ldrFS,
     });
     this.sunVisibility = 1;
-    this._d = new THREE.Vector3(); this._p = new THREE.Vector3();
+    this._d = new THREE.Vector3(); this._p = new THREE.Vector3(); this._v = new THREE.Vector3();
   }
 
   setEnabled(on) { this.enabled = on; this.hdr.enabled = on; this.ldr.enabled = on; }
@@ -128,7 +128,7 @@ export class Cinematic {
     const sunAng = Math.asin(Math.min(1, sun.R / sd));
     // posición del Sol en pantalla
     const p = this._p.copy(sun.rel).applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
-    const vz = this._p.copy(sun.rel).applyMatrix4(camera.matrixWorldInverse).z;   // < 0 = delante
+    const vz = this._v.copy(sun.rel).applyMatrix4(camera.matrixWorldInverse).z;   // < 0 = delante
     H.uSunUV.value.set(p.x * 0.5 + 0.5, p.y * 0.5 + 0.5);
     // visibilidad analítica: fracción del disco solar no tapada por otros cuerpos
     let vis = 1;

@@ -32,7 +32,7 @@ export const CLOUDS = {
     albedo: [1.0, 0.9, 0.66], absorb: [1.0, 1.05, 1.22],
     ambient: [0.09, 0.065, 0.035], ambBottom: 0.1,
     lightLen: 9, g: [0.75, -0.2, 0.3], bright: 2.4, powder: 0.4,
-    shadowK: 28, shadowFloor: [0.2, 0.11, 0.045], skyDim: 1, adapt: 2.4,
+    shadowK: 28, shadowFloor: [0.15, 0.08, 0.032], skyDim: 1, adapt: 2.4,
     wind: [0.1, 0, 0.01],
   },
   // Marte: neblina de polvo suave y baja

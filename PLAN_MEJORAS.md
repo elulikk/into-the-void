@@ -122,3 +122,34 @@ Funciones combinables: fbm, ridged multifractal (cordilleras), domain warping, c
 ## Cambios técnicos de base
 - Tal vez convenga pasar a **Vite** (dev server + bundling de workers y GLSL en archivos `.glsl`). Si no, se pueden seguir usando módulos ES nativos con workers `type: "module"`.
 - Nuevos módulos: `flight.js` (física de vuelo), `camera.js` (cámara de persecución), `fx/` (polvo, warp, post), `planet/` (quadtree, chunk worker, recetas, shaders), `atmosphere/`.
+
+
+---
+
+## Estado: nubes volumétricas y look cinematográfico (rama `claude/nubes-volumetricas-a8290c`)
+
+Módulos nuevos (el resto de los archivos sólo tiene ganchos chicos en `main.js` y `textures.js`):
+- `src/clouds/clouds.js`: `CloudPass`, pasada del composer con raymarch + temporal + composición. `CLOUD_COMMON` exporta `cloudShadow(P)` (sombra 2D de las nubes en un punto, en km del marco local del planeta): **gancho para el shader del terreno**, sólo hay que incluir el GLSL y llamarla.
+- `src/clouds/profiles.js`: capa por planeta (Tierra 1–12 km, Venus 45–70 km, Marte, Titán).
+- `src/clouds/noise.js`: ruido Perlin-Worley 128³ y Worley 32³ horneados en GPU (~1,3 s al arrancar) y mapa de cobertura de la Tierra (mismo patrón que antes estaba pintado en la textura; ya no se pinta).
+- `src/post/cinematic.js`: god rays + lens flare (HDR, antes del bloom, visibilidad del Sol analítica contra las esferas) y curva de color + viñeta + grano (después del OutputPass).
+- `src/post/quality.js`: presets Bajo/Medio/Alto/Ultra, FPS y tiempos de GPU por pasada.
+- `tools/debug_nubes.js`: ayudante para probar con el panel oculto (`await import('/tools/debug_nubes.js')`).
+
+Técnica: raymarch a resolución reducida con profundidad **logarítmica** reconstruida del depth (`RenderTarget.depthTexture`), todo en km en el marco local del planeta (sin coordenadas gigantes), luz hacia el Sol con pasos exponenciales, Beer + powder, doble lóbulo Henyey-Greenstein (silver lining), 3 octavas de dispersión múltiple aproximada (en Venus lo profundo se vuelve naranja), ambiente del cielo, perspectiva aérea con el mismo modelo de `atmosphere.js`, reproyección temporal con clamp de vecindario y upsample bilateral contra la profundidad real (la nave y el relieve ocluyen y son ocluidos; no se asume suelo esférico). Debajo de la capa de Venus hay sombra/adaptación del ojo.
+
+Teclas nuevas: **F3** FPS y tiempos por pasada · **F4** (Shift+F4) preset de calidad · **K** look cinematográfico · **U** nubes.
+
+Costo medido (RTX 3060 Ti, ~3,8 M px ≈ 1440p, preset Alto, ms por cuadro con sincronización):
+
+| Escena | total | nubes | cine | bloom |
+|---|---|---|---|---|
+| Tierra desde 16.000 km | 4,5 | ~1,1 | ~1,4 | ~0,9 |
+| Cúmulos a 6 km | 7,1 | ~2,3 | ~2,3 | ~0,5 |
+| Venus sobre la capa | 6,7 | ~2,1 | ~2,1 | ~0,1 |
+| Dentro de la capa de Venus | 8,2 | ~3,6 | ~2,2 | ~0,4 |
+| Debajo de la capa | 6,6 | ~2,0 | ~2,0 | ~0,4 |
+
+Ultra sube las nubes a ~5–9,5 ms; Bajo las deja en ~1–1,3 ms. Todo cabe en 60 fps con Alto.
+
+Pendiente / ideas: sombra de nubes sobre el terreno (enganchar `cloudShadow`), relámpagos en la capa de Venus, tormentas de polvo de Marte, lluvia en Titán, nubes en los gigantes gaseosos, nubes distantes de la Luna hacia el planeta compuestas con anillos de Saturno.
