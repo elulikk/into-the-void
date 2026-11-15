@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["serve.py"],
       "port": 8080
+    },
+    {
+      "name": "galaxy-nubes",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8091"],
+      "port": 8091
     }
   ]
 }

@@ -12,6 +12,10 @@ import { HUD } from './hud.js';
 import { TerrainManager } from './planet/terrain.js';
 import { julianDate, poleToEcliptic } from './ephemeris.js';
 import { eclToThree } from './system.js';
+// --- nubes volumétricas y look cinematográfico (módulos propios; ver src/clouds y src/post)
+import { CloudPass } from './clouds/clouds.js';
+import { Cinematic } from './post/cinematic.js';
+import { PRESETS, PRESET_NAMES, GpuTimer, PerfOverlay } from './post/quality.js';
 
 // ---------- renderer y cámaras
 const renderer = new THREE.WebGLRenderer({ antialias: false, logarithmicDepthBuffer: true });
@@ -32,7 +36,11 @@ const bgCam = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 1, 5000)
 buildStars(bgScene);
 
 // ---------- post-proceso: HDR + bloom (el Sol y los motores brillan)
-const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+// depthTexture: las nubes reconstruyen la distancia real desde el depth logarítmico
+const rt = new THREE.WebGLRenderTarget(1, 1, {
+  type: THREE.HalfFloatType, samples: 4,
+  depthTexture: new THREE.DepthTexture(1, 1, THREE.FloatType),
+});
 const composer = new EffectComposer(renderer, rt);
 const bgPass = new RenderPass(bgScene, bgCam);
 const mainPass = new RenderPass(scene, camera);
@@ -54,9 +62,24 @@ const sanitize = new ShaderPass({
 });
 composer.addPass(bgPass);
 composer.addPass(mainPass);
+const cloudPass = new CloudPass(renderer, camera);
+const cine = new Cinematic();
+composer.addPass(cloudPass);
 composer.addPass(sanitize);
+composer.addPass(cine.hdr);     // god rays + lens flare (HDR, antes del bloom)
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
+composer.addPass(cine.ldr);     // curva de color, viñeta y grano
+const gpuTimer = new GpuTimer(renderer);
+gpuTimer.wrap('nubes', cloudPass); gpuTimer.wrap('bloom', bloom); gpuTimer.wrap('cine', cine.hdr);
+const perf = new PerfOverlay();
+let presetIdx = 2;               // Alto
+function applyPreset(i) {
+  presetIdx = (i + PRESET_NAMES.length) % PRESET_NAMES.length;
+  cloudPass.setQuality(PRESETS[PRESET_NAMES[presetIdx]]);
+}
+applyPreset(presetIdx);
+let cloudsOn = true;
 
 function resize() {
   for (const c of [camera, bgCam]) { c.aspect = innerWidth / innerHeight; c.updateProjectionMatrix(); }
@@ -143,7 +166,7 @@ let audio = null, pad = null;
 import('./audio.js').then(m => { audio = new m.ShipAudio(); }).catch(e => console.warn('Sin sonido:', e.message));
 import('./gamepad.js').then(m => { pad = new m.GamepadInput(); }).catch(e => console.warn('Sin gamepad:', e.message));
 
-window.__game = { ship, system, renderer, scene, camera, cam, composer, bloom, terrain }; // para depurar desde la consola
+window.__game = { ship, system, renderer, scene, camera, cam, composer, bloom, cloudPass, cine, terrain, applyPreset, perf, gpuTimer }; // para depurar desde la consola
 const hud = new HUD(system, ship, b => { ship.target = b; ship.status = `Objetivo: ${b.name}`; });
 loading.classList.add('done');
 
@@ -222,6 +245,10 @@ addEventListener('keydown', e => {
     ship.recenter();
     ship.status = ship.mouseMode === 'stick' ? 'Mouse: joystick virtual' : 'Mouse: directo';
   }
+  if (e.code === 'F3') { e.preventDefault(); perf.toggle(); }
+  if (e.code === 'F4') { e.preventDefault(); applyPreset(presetIdx + (e.shiftKey ? -1 : 1)); ship.status = `Calidad: ${PRESET_NAMES[presetIdx]}`; }
+  if (e.code === 'KeyK') { cine.setEnabled(!cine.enabled); ship.status = `Look cinematográfico ${cine.enabled ? 'activado' : 'desactivado'}`; }
+  if (e.code === 'KeyZ') { cloudsOn = !cloudsOn; ship.status = `Nubes volumétricas ${cloudsOn ? 'activadas' : 'desactivadas'}`; }
   if (e.code === 'KeyB') { bloom.enabled = !bloom.enabled; ship.status = `Bloom ${bloom.enabled ? 'activado' : 'desactivado'}`; }
   if (e.code === 'KeyM' && audio) { audio.muted = !audio.muted; audio.setMuted(audio.muted); ship.status = audio.muted ? 'Sonido silenciado' : 'Sonido activado'; }
   if (e.code === 'Period') warpIdx = Math.min(WARPS.length - 1, warpIdx + 1);
@@ -293,12 +320,19 @@ function step(fixedDt) {
   system.syncRender(camWorld, camera, ship.world, ship.frame);
   terrain.update(camWorld, camera);
 
+  // nubes + look cinematográfico (después de syncRender: usan las posiciones relativas de este cuadro)
+  cloudPass.update(dt, system, camera);
+  if (!cloudsOn) cloudPass.enabled = false;
+  cine.update(camera, system.bodies, system.byId.sun, cloudPass.coverDim, clock.elapsedTime);
+
   const speed01 = Math.min(1, ship.vel.length() / Math.max(1, ship.vmax));
   dust.update(dt, ship.vel, speed01, ship.cruise === 'on' ? 1 : 0);
 
   bgCam.quaternion.copy(camera.quaternion);
   composer.render(dt);
 
+  gpuTimer.poll(); perf.frame(dt);
+  perf.draw({ preset: PRESET_NAMES[presetIdx], clouds: cloudPass.enabled ? (cloudPass.body?.name ?? '-') : 'off', cine: cine.enabled ? 'on' : 'off' }, gpuTimer);
   audio?.update(ship.audioState(), dt);
   hud.update(camera, new Date(simMs), WARPS[warpIdx], paused);
   ship.events.length = 0;
