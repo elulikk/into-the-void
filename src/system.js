@@ -6,9 +6,11 @@ import * as THREE from 'three';
 import { BODIES, ATMOSPHERES } from './bodies.js';
 import { createAtmosphere, updateAtmosphere } from './atmosphere.js';
 import { planetElements, planetPosition, moonElements, orbitalPosition, positionFromE, poleToEcliptic } from './ephemeris.js';
+import { getRecipe } from './planet/recipes.js';
 import { proceduralTexture, tryRealTexture, ringTexture, glowTexture } from './textures.js';
 
 const DEG = Math.PI / 180;
+const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion();
 const KM = 1000;
 const EARTH_MOON_MASS_RATIO = 0.0121505856; // m_luna / (m_tierra + m_luna)
 
@@ -69,6 +71,10 @@ export class SolarSystem {
       b.tilt = new THREE.Quaternion();
       if (pole) b.tilt.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pole.normalize());
       else if (b.parentBody) b.tilt.copy(b.parentBody.tilt); // lunas sin polo: el de su planeta
+      b.qBody = new THREE.Quaternion();                     // tilt · Ry(spin): orientación de la superficie
+      b.poleWorld = new THREE.Vector3(0, 1, 0).applyQuaternion(b.tilt);
+      b.recipe = getRecipe(b.id, b.R);                      // relieve (null si no tiene terreno)
+      b.spin = 0; b.dSpin = 0;
     }
     this.lastOrbitJd = null;
   }
@@ -221,9 +227,18 @@ export class SolarSystem {
     }
     // Rotación propia
     const hours = d * 24;
+    const _qs = new THREE.Quaternion();
     for (const b of this.bodies) {
-      b.spin = ((hours / b.rot) % 1) * Math.PI * 2;
+      const spin = ((hours / b.rot) % 1) * Math.PI * 2;
+      // delta de rotación desde el cuadro anterior (para la co-rotación de la nave), en ±π
+      let ds = spin - b.spin;
+      ds -= Math.round(ds / (Math.PI * 2)) * Math.PI * 2;
+      b.dSpin = this.spinInit ? ds : 0;
+      b.spin = spin;
+      _qs.set(0, Math.sin(spin / 2), 0, Math.cos(spin / 2));
+      b.qBody.multiplyQuaternions(b.tilt, _qs);
     }
+    this.spinInit = true;
     if (this.lastOrbitJd === null || Math.abs(jd - this.lastOrbitJd) > 30) this.buildOrbits(jd);
   }
 
@@ -281,13 +296,25 @@ export class SolarSystem {
     return best;
   }
 
-  // Cuerpo con la superficie más cercana
+  // Radio de la superficie real (R + relieve) bajo el punto p (absoluto, m).
+  // Usa la misma receta que el worker, con detalle de ~minWl metros.
+  surfaceRadius(b, p, minWl = 0.5) {
+    if (!b.recipe) return b.R;
+    const v = _sv.subVectors(p, b.pos);
+    const d = v.length();
+    if (d < 1) return b.R;
+    v.applyQuaternion(_sq.copy(b.qBody).invert()).multiplyScalar(1 / d);
+    return b.R + b.recipe.heightAt(-v.x, v.y, v.z, minWl);   // (-x, y, z): espacio de estilo
+  }
+
+  // Cuerpo con la superficie más cercana (con el relieve real si está cerca)
   nearestSurface(p) {
     let best = null, alt = Infinity;
     for (const b of this.bodies) {
       const a = p.distanceTo(b.pos) - b.R;
       if (a < alt) { alt = a; best = b; }
     }
+    if (best?.recipe && alt < best.R * 2) alt = p.distanceTo(best.pos) - this.surfaceRadius(best, p, Math.max(0.5, alt * 0.01));
     return { body: best, alt };
   }
 }

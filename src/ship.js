@@ -66,6 +66,8 @@ const NORMAL_CAP = 3000;                                // m/s sin supercrucero
 const CRUISE_CHARGE = 1.5;                              // s de carga del supercrucero
 const STICK_PX = 260;                                   // px de mouse para llegar al tope del joystick virtual
 const DEAD = 0.05;
+const CLEARANCE = 10;                                  // m sobre el terreno real
+const COROT_R = 3;                                      // co-rotar con el cuerpo por debajo de 3 R
 
 const expK = (k, dt) => 1 - Math.exp(-k * dt);
 function shape(v) {
@@ -111,6 +113,20 @@ export class Ship {
     const m = new THREE.Matrix4().lookAt(this.world, lookAtWorld, new THREE.Vector3(0, 1, 0));
     this.quat.setFromRotationMatrix(m);
     this.vel.set(0, 0, 0);
+  }
+
+  // Co-rotación: cerca de un cuerpo con terreno, la nave gira con él (si no, el suelo
+  // "patina" por debajo: 460 m/s en el ecuador terrestre, y peor con aceleración temporal).
+  // Devuelve el cuaternión aplicado (o null) para que la cámara gire igual.
+  coRotate() {
+    const b = this.frame;
+    if (!b?.recipe || !b.dSpin || this.local.length() > COROT_R * b.R) return null;
+    _q.setFromAxisAngle(b.poleWorld, b.dSpin);
+    this.local.applyQuaternion(_q);
+    this.vel.applyQuaternion(_q);
+    this.quat.premultiply(_q).normalize();
+    this.world.copy(b.pos).add(this.local);
+    return _q;
   }
 
   forward(out = new THREE.Vector3()) { return out.set(0, 0, -1).applyQuaternion(this.quat); }
@@ -243,10 +259,11 @@ export class Ship {
     this.local.addScaledVector(this.vel, dt);
     this.world.copy(this.frame.pos).add(this.local);
 
-    // ================= colisión simple con superficies =================
+    // ================= colisión con superficies (relieve real si el cuerpo tiene terreno) =================
     for (const b of system.bodies) {
       const d = this.world.distanceTo(b.pos);
-      const minD = b.R + 15;
+      if (d > b.R + (b.recipe ? b.recipe.maxH : 0) + 1000) continue;
+      const minD = b.recipe ? system.surfaceRadius(b, this.world) + CLEARANCE : b.R + 15;
       if (d < minD) {
         const n = new THREE.Vector3().subVectors(this.world, b.pos).normalize();
         this.world.copy(b.pos).addScaledVector(n, minD);
