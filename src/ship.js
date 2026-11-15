@@ -2,62 +2,10 @@
 // La posición se guarda RELATIVA al cuerpo dominante (marco de referencia),
 // así la nave acompaña a la Tierra/Luna/etc. aunque aceleres el tiempo.
 import * as THREE from 'three';
+import { createShipVisual } from './ship/visual.js';
+import { atmoDensity } from './fx/reentry.js';
 
 export const C = 299792458;
-
-function buildModel() {
-  const g = new THREE.Group();
-  const hull = new THREE.MeshStandardMaterial({ color: 0xc9ced6, metalness: 0.6, roughness: 0.35 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x2a2f38, metalness: 0.5, roughness: 0.5 });
-  const accent = new THREE.MeshStandardMaterial({ color: 0xe0612b, metalness: 0.3, roughness: 0.5 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0x223b55, metalness: 0.9, roughness: 0.1, emissive: 0x0a1a2a });
-
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 2.0, 12, 16), hull);
-  body.rotation.x = Math.PI / 2;
-  g.add(body);
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(1.4, 5, 16), hull);
-  nose.rotation.x = -Math.PI / 2;
-  nose.position.z = -8.5;
-  g.add(nose);
-  const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 12), glass);
-  canopy.scale.set(0.9, 0.7, 2.0);
-  canopy.position.set(0, 1.2, -4.5);
-  g.add(canopy);
-  for (const s of [-1, 1]) {
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(7, 0.35, 4.5), hull);
-    wing.position.set(s * 4.8, -0.3, 2);
-    wing.rotation.y = s * 0.35;
-    g.add(wing);
-    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.8, 3), accent);
-    tip.position.set(s * 8.2, 0.4, 3.2);
-    g.add(tip);
-    const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 5, 12), dark);
-    pod.rotation.x = Math.PI / 2;
-    pod.position.set(s * 2.6, -0.5, 4.5);
-    g.add(pod);
-  }
-  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.3, 3, 3.5), accent);
-  fin.position.set(0, 2.3, 4.5);
-  g.add(fin);
-
-  const flameMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x66ccff).multiplyScalar(2.5), transparent: true, opacity: 0.8,
-    blending: THREE.AdditiveBlending, depthWrite: false });
-  const flames = [];
-  for (const x of [-2.6, 0, 2.6]) {
-    const f = new THREE.Mesh(new THREE.ConeGeometry(x === 0 ? 1.2 : 0.7, 1, 12, 1, true), flameMat);
-    f.rotation.x = -Math.PI / 2;
-    f.position.set(x, x === 0 ? 0 : -0.5, 7);
-    g.add(f);
-    flames.push(f);
-  }
-  g.userData.flames = flames;
-  g.userData.flameMat = flameMat;
-  const engineLight = new THREE.PointLight(0x66ccff, 0, 40, 2);
-  engineLight.position.set(0, 0, 9);
-  g.add(engineLight);
-  g.userData.engineLight = engineLight;
-  return g;
-}
 
 // ---- parámetros de manejo (arcade)
 const RATE = { pitch: 1.5, yaw: 1.25, roll: 2.6 };     // rad/s máximos
@@ -77,8 +25,8 @@ const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quater
 
 export class Ship {
   constructor(scene) {
-    this.model = buildModel();
-    scene.add(this.model);
+    this.visual = createShipVisual(scene);   // modelo + efectos (src/ship/visual.js)
+    this.model = this.visual.object3d;
     this.frame = null;                     // cuerpo de referencia
     this.local = new THREE.Vector3();      // posición relativa al marco (m)
     this.world = new THREE.Vector3();      // posición absoluta (m)
@@ -272,15 +220,22 @@ export class Ship {
     );
     this.visualTilt.lerp(tilt, expK(6, dt));
 
-    // ================= efectos de motor =================
+    // ================= efectos visuales (modelo, escape, RCS, plasma) =================
+    this.visual.update(this.visualState(), dt);
+  }
+
+  // estado para la parte visual (src/ship/visual.js)
+  visualState() {
     const thrust = Math.max(0, this.autopilot ? this.vel.length() / Math.max(1, this.vmax) : this.throttle);
-    const fl = 0.3 + thrust * 6 * (1 + this.boost * 0.8);
-    for (const f of this.model.userData.flames) {
-      f.scale.set(1 + this.boost * 0.3, fl * (0.9 + Math.random() * 0.2), 1 + this.boost * 0.3);
-      f.position.z = 7 + f.scale.y * 0.5;
-    }
-    this.model.userData.flameMat.opacity = 0.2 + thrust * 0.7;
-    this.model.userData.engineLight.intensity = thrust * 40 * (1 + this.boost);
+    const speed = this.vel.length();
+    return {
+      throttle: thrust, boost: this.boost, speed,
+      speed01: Math.min(1, speed / Math.max(1, this.vmax)),
+      cruise: this.cruise, cruiseCharge: this.cruiseCharge,
+      angVel: this.angVel, strafe: this.strafe, engineMode: this.engineMode,
+      atmoDensity: atmoDensity(this.nearest),
+      velLocal: _v.copy(this.vel).applyQuaternion(_q.copy(this.quat).invert()),
+    };
   }
 
   // cuaternión con el que se dibuja el modelo (física + inclinación cosmética)
