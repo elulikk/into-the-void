@@ -239,6 +239,22 @@ Imagen de referencia: fotograma de la serie *Cosmos* (FOX), con derechos de auto
 
 Técnica: nubes volumétricas en varias capas (amoníaco, NH₄SH, agua) con flujo animado por bandas y un vórtice paramétrico para la Gran Mancha Roja (campo de velocidad que deforma el ruido), relámpagos como luces puntuales breves dentro del volumen, niebla y oscurecimiento por profundidad, viento como fuerza sobre la nave en modo atmosférico, sonido de viento y truenos.
 
+### Saturno: viajar por los anillos (referencia del usuario)
+Dos imágenes de referencia, de arte digital sin fuente conocida. Están solo en local, en `docs/referencias/privadas/saturno-anillos-1.png` y `-2.png`.
+- **Decisión: mezcla.** El hielo real es la base (blanco-crema con tinte rosado o pardo), con los **tonos cálidos, las estrías y la densidad de rocas de las referencias** para que impacte.
+- **De lejos:** bandas concéntricas finísimas, como los surcos de un disco, con franjas más claras y más oscuras (anillos C, B, A, división de Cassini, Encke). Brillo cálido del lado iluminado, y Saturno enorme con sus bandas crema y ocre.
+- **Rasante sobre el plano del anillo** (segunda referencia): una "ruta" infinita de partículas que se pierde en una curva hacia el horizonte. **Estrías por velocidad** (motion blur radial) y bloques de hielo y roca de todos los tamaños que pasan cerca, **arrojando sombras largas** sobre el polvo del anillo. El Sol bajo, chico y brillante, con el planeta llenando medio cielo.
+- **Adentro del anillo:**
+  - El anillo es finísimo (~10 m a 1 km de espesor) pero enorme. Al cruzarlo, una nube de partículas te rodea por un instante: golpes de hielo contra el casco, chispas, temblor.
+  - Volando dentro, campo de bloques flotantes para esquivar: piezas de cm hasta casas (~10 m), con alguno más grande ocasional.
+- **Detalles reales:**
+  - Sombra de Saturno proyectada sobre los anillos.
+  - Sombra de los anillos sobre el planeta.
+  - "Rayos" (spokes) oscuros que aparecen y desaparecen.
+  - Las lunas pastoras (Prometeo, Pandora) cerca del anillo F.
+
+Técnica: textura radial de alta resolución (ya existe una base en `ringTexture`) más **instancias de partículas en la vecindad de la cámara** (campo procedural determinista por celda, como el polvo espacial pero con rocas 3D, generadas y recicladas alrededor de la nave), sombras de rocas sobre el plano, motion blur por velocidad, iluminación de dispersión hacia adelante (los anillos brillan a contraluz), y sonido de impactos de hielo al cruzar.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
