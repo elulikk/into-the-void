@@ -262,6 +262,22 @@ Técnica: textura radial de alta resolución (ya existe una base en `ringTexture
 - **Comparaciones con escala humana:** como las equivalencias del velocímetro, pero para tamaños, presiones y temperaturas ("la presión en Venus equivale a estar a 900 m bajo el mar").
 - **Hitos de exploración (opcional):** visitar lugares reales (sitios del Apolo, rovers de Marte, la Gran Mancha Roja, cruzar los anillos) desbloquea su ficha completa.
 
+## PARTE I: menús, opciones y calidad de imagen
+- **Antialias:**
+  - Hoy hay MSAA ×4 en el render target del composer, pero el post-proceso (bloom, nubes, look cinematográfico) puede dejar bordes serruchados y parpadeo en líneas finas y en el terreno lejano.
+  - Opciones: **SMAA** (barato, nítido), **TAA** (temporal, el mejor contra el parpadeo del terreno y las nubes, con jitter de cámara y reproyección), FXAA como mínimo y MSAA ×2/×4/×8.
+  - Más un sharpen suave opcional y una **escala de resolución** (render al 50–200 % con reescalado).
+- **Menús más lindos:**
+  - Pantalla de inicio con la nave orbitando la Tierra de fondo, título y botones con el estilo del HUD (líneas finas, glow cian, animaciones de entrada, sonido de interfaz).
+  - Menú de pausa (Esc) sobre el juego desenfocado.
+  - Transiciones suaves y navegación con mouse, teclado y gamepad.
+- **Opciones de configuración** (persistentes en localStorage, con vista previa en vivo y botón "restaurar"):
+  - **Gráficos:** preset (Bajo, Medio, Alto, Ultra, Personalizado), escala de resolución, tipo de antialias, calidad de nubes, detalle de terreno (distancia de LOD), sombras, bloom, look cinematográfico, motion blur, grano, FOV (exterior y cabina por separado), límite de FPS, contador de FPS.
+  - **Controles:** reasignar teclas y botones del gamepad, sensibilidad e inversión del mouse, modo del mouse (joystick virtual o directo), zona muerta.
+  - **Audio:** volumen general, motor, ambiente, interfaz y música (para cuando exista).
+  - **HUD e interfaz:** estilo del HUD, unidades (métrico, imperial, astronómico), etiquetas, tamaño del texto, idioma (español primero).
+  - **Juego:** asistencias de vuelo, velocidad del tiempo, nivel de "licencia creativa" de las fichas.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
@@ -274,13 +290,14 @@ Técnica: textura radial de alta resolución (ya existe una base en `ringTexture
 8. **Mapa holográfico 3D, minimapa y mapa planetario** (C1).
 
 ### Orden acordado para lo que sigue (una sesión por vez, en Sonnet)
-1. **Sensores** (D): faros y bengalas, visión nocturna, térmica, radar/LIDAR.
-2. **Cabina y aterrizaje automático** (G).
-3. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos.
-4. **Etiquetas de lugares** (E) + **fichas para aprender** (H).
-5. **Detalle 3D y visual** (F): Tierra, Luna, Marte.
-6. **Clima y sonido ambiente** (F).
-7. **Mapa holográfico** (C1) y, al final, **música**.
+1. **Menús, opciones y antialias** (I): es la base donde se van a colgar las opciones de todo lo demás.
+2. **Sensores** (D): faros y bengalas, visión nocturna, térmica, radar/LIDAR.
+3. **Cabina y aterrizaje automático** (G).
+4. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos.
+5. **Etiquetas de lugares** (E) + **fichas para aprender** (H).
+6. **Detalle 3D y visual** (F): Tierra, Luna, Marte.
+7. **Clima y sonido ambiente** (F).
+8. **Mapa holográfico** (C1) y, al final, **música**.
 
 ## Cambios técnicos de base
 - Tal vez convenga pasar a **Vite** (dev server + bundling de workers y GLSL en archivos `.glsl`). Si no, se pueden seguir usando módulos ES nativos con workers `type: "module"`.
