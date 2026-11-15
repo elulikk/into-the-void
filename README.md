@@ -43,7 +43,7 @@ Por defecto las texturas son procedurales. Para usar texturas reales:
 
 ## Modos de motor
 
-La lógica está en `src/ship/engines.js`; la densidad del aire (ρ = ρ0·e^(−h/H) por planeta), en `src/air.js`.
+La lógica está en `src/ship/engines.js`; la densidad del aire sale de un único modelo físico (`src/physics/environment.js`, equilibrio hidrostático por cuerpo), que usan los motores (`src/air.js`), el plasma de reentrada y el HUD.
 
 | Modo | Para qué | Rango | Manejo |
 |---|---|---|---|
@@ -58,14 +58,32 @@ sonido (turbina, rumor grave, drone) y su FOV/temblor de cámara.
 
 ## Controles
 
-Pulsá **H** dentro del juego para ver todos los controles.
+Pulsá **H** dentro del juego para ver la ayuda. Hacé clic para capturar el mouse (funciona como joystick virtual).
 
-- Hacé clic para capturar el mouse. El mouse funciona como joystick virtual (V cambia a mouse directo).
-- **W/S**: acelerador. **Shift**: boost. **T**: modo de motor (**Y** atmosférico, **U** impulso, **J** supercrucero).
-- **Botón derecho / Alt**: vista libre.
-- **0–8**: elegir objetivo.
-- **G**: piloto automático al objetivo.
-- **, y .**: aceleración temporal.
+| Tecla | Acción |
+|---|---|
+| Mouse · flechas | Cabeceo y guiñada (V: joystick virtual / mouse directo) |
+| Q / E | Alabeo |
+| W / S · Shift | Acelerador · boost |
+| A / D · R / F | Strafe lateral · vertical |
+| X | Frenar |
+| T | Recorrer modos de motor |
+| Y · U · J | Modo atmosférico · impulso · supercrucero |
+| 0–8 · Tab / Shift+Tab · N | Objetivo: Sol…Neptuno · siguiente/anterior · siguiente luna |
+| G | Piloto automático al objetivo |
+| , / . | Aceleración temporal (×1 … ×1.000.000) |
+| P · Backspace | Pausar el tiempo · volver a la fecha actual |
+| C · L · O | Cámara 1ª/3ª persona · etiquetas · órbitas |
+| Botón derecho / Alt | Vista libre |
+| I | Estilo del HUD: sci-fi · aviónica · minimalista |
+| K | Look cinematográfico (god rays, lens flare, color) |
+| Z | Nubes volumétricas on/off |
+| B · M | Bloom · silenciar sonido |
+| F3 · F4 (Shift+F4) | FPS y tiempos de GPU · calidad Bajo/Medio/Alto/Ultra |
+| H | Ayuda |
+| Gamepad | Se detecta al tocar un botón; Back/View = modo de motor |
+
+Teclas reasignadas en la integración: el estilo del HUD pasó de U a **I** y las nubes de U a **Z**, porque U es el modo impulso.
 
 ## Nave y efectos
 
