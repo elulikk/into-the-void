@@ -2,7 +2,8 @@
 
 ## Decisiones tomadas
 - **Vuelo muy arcade** (tipo Freelancer/No Man's Sky): giros rápidos y con respuesta, sin deriva lateral, alabeo automático y cámara con resorte. El Flight Assist apagado (A2) queda fuera; el empuje mantiene algo de rampa para que haya "peso".
-- **Se empieza por la fase 1 (vuelo).**
+- **Se empieza por la fase 1 (vuelo).** Fases 1 y 2 terminadas y en `main`.
+- **Cada fase se hace en una sesión nueva** (para no acumular contexto).
 - **Planetas realistas fieles**: geografía y colores parecidos a los reales, generados proceduralmente.
 - **Extras incluidos**: sonido procedural, gamepad, aterrizaje (va en la fase 5, una vez que haya terreno real). Sin migrar a Vite: se siguen usando módulos ES y `serve.py`.
 
@@ -110,14 +111,30 @@ Funciones combinables: fbm, ridged multifractal (cordilleras), domain warping, c
 
 ---
 
+### B8. Descensos cinematográficos (pedido del usuario)
+Bajar a cada planeta tiene que ser **impactante**: cruzar capas, cambiar la luz y descubrir una superficie distinta en cada mundo. Se apoya en B1–B5 (terreno, shading, atmósfera desde adentro, nubes).
+
+| Cuerpo | Experiencia de descenso |
+|---|---|
+| Venus | Atravesar un mar de **nubes amarillas volumétricas** (~45–70 km) con turbulencia y temblor de cámara. Debajo, luz naranja apagada y bruma densa; llanuras basálticas con **ríos y lagos de lava** que brillan (emisivo + bloom), volcanes (Maat Mons), calor que distorsiona el aire. *Nota: hoy Venus no tiene ríos de lava activos confirmados; se dramatiza como vulcanismo activo.* |
+| Tierra | Capa de nubes volumétricas, océano con reflejo del Sol, montañas nevadas, luces de ciudades de noche. |
+| Marte | Cielo caramelo, **tormentas de polvo** que bajan la visibilidad, Valles Marineris y Olympus Mons a escala, remolinos de polvo, atardecer azul. |
+| Titán | Neblina naranja espesa, **lagos de metano** espejados, dunas, llovizna de metano. |
+| Júpiter / Saturno | Hundirse entre bandas de nubes de colores, **relámpagos** en las tormentas, oscuridad y presión creciente hasta el límite. Cruzar los anillos de Saturno entre bloques de hielo. |
+| Ío | **Plumas volcánicas** de cientos de km, lagos de lava (Loki Patera), azufre amarillo. |
+| Europa / Encélado | Hielo agrietado, **géiseres** de vapor (Encélado), Júpiter gigante en el cielo. |
+| Luna / Mercurio | Cráteres nítidos, sombras duras, la Tierra o el Sol enormes en el horizonte. |
+
+Técnica: nubes volumétricas por raymarching (B5), emisivos con bloom (lava), partículas (plumas, polvo, lluvia, hielo), niebla de altura y sonido de viento según la densidad del aire.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
 2. **Post-proceso + atmósfera por scattering vista desde el espacio** (B4 parcial, B7 bloom): el salto visual más grande por el esfuerzo.
 3. **Terreno LOD + colisión real** (B1) con una receta simple, probado en la Luna.
 4. **Recetas por planeta + shading de superficie + océano** (B2, B3).
-5. **Atmósfera desde adentro, nubes, aterrizaje** (B4 completo, B5).
-6. **Gigantes gaseosos animados, anillos con sombras, sonido, gamepad, pulido** (B6, A4 sonido).
+5. **Atmósfera desde adentro, nubes, aterrizaje y descensos cinematográficos** (B4 completo, B5, B8): Venus primero.
+6. **Gigantes gaseosos animados, anillos con sombras, descensos a Júpiter/Saturno, plumas de Ío, pulido** (B6, B8).
 
 ## Cambios técnicos de base
 - Tal vez convenga pasar a **Vite** (dev server + bundling de workers y GLSL en archivos `.glsl`). Si no, se pueden seguir usando módulos ES nativos con workers `type: "module"`.
