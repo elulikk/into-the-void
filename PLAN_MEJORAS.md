@@ -290,6 +290,23 @@ Objetivo: que al entrar en la atmósfera de la Tierra se sienta como Microsoft F
   - **HUD e interfaz:** estilo del HUD, unidades (métrico, imperial, astronómico), etiquetas, tamaño del texto, idioma (español primero).
   - **Juego:** asistencias de vuelo, velocidad del tiempo, nivel de "licencia creativa" de las fichas.
 
+## PARTE J: agujeros de gusano (portales gigantes)
+- **Crear portales donde quieras:** marcás un punto (donde estás, o eligiéndolo en el mapa holográfico C1) y se abre una **boca de agujero de gusano** gigante, de cientos de metros a decenas de km según lo que elijas. Se conecta con otra boca en otro lugar: el sistema solar, la órbita de un planeta, un lugar de la superficie. Con nombre, color, lista para administrarlos (renombrar, borrar), guardados en localStorage y un límite razonable de pares.
+- **Cómo se ve:** una **esfera que dobla la luz** (lente gravitacional real, estilo *Interstellar*): el fondo se curva y se repite en anillos alrededor del borde y, adentro, **se ve el otro lado** (el destino deformado). El destino se muestra con un cubemap que se actualiza cada tanto, o en vivo si el preset lo permite. Brillo en el borde, partículas atraídas, y el polvo espacial se curva al acercarte.
+- **Cruzarlo:** túnel corto (1–3 s) con distorsión, estelas de luz, temblor, sonido grave que sube, y salida por la otra boca **conservando la dirección y la velocidad relativas**. La nave cambia de marco de referencia al cuerpo dominante del destino. El HUD muestra "TRÁNSITO POR AGUJERO DE GUSANO" y el tiempo de viaje ahorrado.
+- **Aprender (parte H):** ficha con lo real (los agujeros de gusano de Einstein–Rosen son soluciones teóricas, no observadas; la imagen de *Interstellar* se calculó con física real de lentes gravitacionales) y marca de licencia creativa.
+- **Técnica:** shader de lente en post-proceso con la posición de la boca en pantalla (deflexión según el parámetro de impacto), segunda cámara o cubemap en el destino, precisión con doubles (bocas en coordenadas relativas a su cuerpo, para que acompañen a un planeta si están en su órbita o superficie).
+
+## PARTE K: más velocidad en atmósfera y para escapar
+- **Modo atmosférico con escalones:**
+  - Crucero subsónico (vuelo sobre ciudades).
+  - **Supersónico** (Mach 1–5, con estampido sónico y cono de vapor al cruzar Mach 1).
+  - **Hipersónico** (hasta Mach 25, la velocidad de reentrada), con plasma alrededor de la nave, calentamiento del casco (HUD), vibración y sonido apagado.
+  - Más rápido cuanto más alto (aire más fino): la velocidad máxima sale de la densidad.
+- **Escape rápido:** un comando de **"escape a órbita"** que sube con un perfil de ascenso automático (vertical y después girando hacia horizontal), con boost fuerte, cruzando las capas hasta el espacio en segundos, y al salir de la atmósfera cambia solo a impulso o crucero.
+- **Crucero más permisivo:** opción para no forzar la caída a modo atmosférico al entrar rápido (en Asistencias, parte I), o para entrar con un "frenado aerodinámico" espectacular (bola de plasma) en vez de cortar de golpe.
+- **Asistencia arcade:** opción para ignorar los límites de calor y presión (para quien quiere velocidad sin sufrir), con los datos reales igual a la vista en el HUD.
+
 ## Fases sugeridas (cada una deja el juego funcionando)
 
 1. **Vuelo** (A1–A4 sin sonido): impacto inmediato, bajo riesgo.
@@ -304,12 +321,14 @@ Objetivo: que al entrar en la atmósfera de la Tierra se sienta como Microsoft F
 ### Orden acordado para lo que sigue (una sesión por vez, en Sonnet)
 1. **Menús, opciones y antialias** (I): es la base donde se van a colgar las opciones de todo lo demás.
 2. **Sensores** (D): faros y bengalas, visión nocturna, térmica, radar/LIDAR.
-3. **Cabina y aterrizaje automático** (G).
+3. **Cabina, aterrizaje automático y más velocidad en atmósfera y para escapar** (G + K).
 4. **Mapas reales** de la Tierra, la Luna y Marte (B9), pidiendo permiso antes de bajar datos. La Tierra con streaming de mosaicos abiertos estilo simulador de vuelo (relieve, imagen satelital, edificios de OSM).
 5. **Etiquetas de lugares** (E) + **fichas para aprender** (H).
 6. **Detalle 3D y visual** (F): Tierra, Luna, Marte.
 7. **Clima y sonido ambiente** (F).
-8. **Mapa holográfico** (C1) y, al final, **música**.
+8. **Mapa holográfico** (C1).
+9. **Agujeros de gusano** (J): se crean desde el mapa holográfico.
+10. **Música**.
 
 ## Cambios técnicos de base
 - Tal vez convenga pasar a **Vite** (dev server + bundling de workers y GLSL en archivos `.glsl`). Si no, se pueden seguir usando módulos ES nativos con workers `type: "module"`.
