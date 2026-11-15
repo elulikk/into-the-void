@@ -190,7 +190,7 @@ export function stepEngines(ship, dt, env) {
   // ---- calor de reentrada / buffeting (0..1): para cámara y sonido
   let heat = 0;
   if (env.inZone && env.rho > 0) {
-    const vt = atmoTopSpeed(env);
+    const vt = atmoTopSpeed(env, 1);   // con postcombustión no cuenta como reentrada
     heat = clamp((speed - vt) / (3 * vt), 0, 1) * Math.min(1, 0.3 + 4 * Math.sqrt(env.rho01));
   }
   ship.reentry += (heat - ship.reentry) * expK(heat > ship.reentry ? 8 : 1.5, dt);
